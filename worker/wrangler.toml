@@ -15,3 +15,11 @@ MODEL = "qwen3-vl-plus"
 #   1) 命令行：npx wrangler secret put DASHSCOPE_API_KEY
 #   2) Cloudflare 后台：Workers & Pages → chujian-radar → Settings →
 #      Variables and Secrets → 添加 Secret，名字填 DASHSCOPE_API_KEY
+
+# 两道限流保险的计数存储（生产环境必须绑定，绑定名必须是 LIMITS）：
+# 先在 Cloudflare 后台 Workers & Pages → KV 里创建一个命名空间（如 chujian-radar-limits），
+# 把它的 id 填到下面并去掉注释；也可以不走本文件，直接在 Worker 后台
+# Settings → Variables and Secrets / Bindings 里把该 KV 命名空间绑定为 LIMITS。
+# [[kv_namespaces]]
+# binding = "LIMITS"
+# id = "<部署时在 Cloudflare 后台创建 KV 命名空间后填入>"
