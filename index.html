@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>初见雷达 · 测测你给人的第一印象</title>
+<meta name="description" content="上传一张正面照，AI 从 7 个维度分析陌生人对你的第一印象，给出落差指数、雷达图和微调建议。娱乐测评，结果仅供参考。">
+<style>
+  :root{
+    --bg:#faf6ef;
+    --card:#fffdf8;
+    --ink:#262019;
+    --muted:#7a6f5f;
+    --line:#eadfce;
+    --accent:#d9481c;
+    --accent-soft:#fdeee7;
+    --teal:#0f766e;
+    --teal-soft:#e6f4f1;
+    --danger:#b3261e;
+    --danger-soft:#fdecea;
+    --radius:16px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",sans-serif;
+    font-size:16px;line-height:1.6;
+  }
+  .wrap{max-width:560px;margin:0 auto;padding:20px 16px 40px}
+  header.top{text-align:center;padding:18px 0 6px}
+  .badge{display:inline-block;background:var(--teal-soft);color:var(--teal);font-size:12px;font-weight:600;
+    padding:3px 10px;border-radius:999px;letter-spacing:.08em}
+  h1{font-family:"Songti SC","STSong","SimSun",serif;font-size:32px;line-height:1.25;margin:12px 0 6px;font-weight:700}
+  h1 .accent{color:var(--accent)}
+  .sub{color:var(--muted);font-size:14px;margin:0}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:18px 16px;margin-top:16px;box-shadow:0 1px 3px rgba(80,60,20,.05)}
+  .card h2{font-size:17px;margin:0 0 10px}
+  .card h2 .step{display:inline-block;background:var(--accent);color:#fff;width:22px;height:22px;line-height:22px;
+    text-align:center;border-radius:50%;font-size:13px;margin-right:8px;vertical-align:2px}
+
+  /* 上传区 */
+  .uploader{border:2px dashed var(--line);border-radius:12px;padding:22px 12px;text-align:center;cursor:pointer;
+    background:#fff;transition:border-color .15s}
+  .uploader:active{border-color:var(--accent)}
+  .uploader .big{font-size:17px;font-weight:600;margin:6px 0 2px}
+  .uploader .small{color:var(--muted);font-size:13px}
+  .uploader .cam{font-size:34px;line-height:1}
+  .preview{display:none;text-align:center}
+  .preview img{max-width:100%;max-height:340px;border-radius:12px}
+  .preview .row{margin-top:10px;display:flex;gap:10px;justify-content:center}
+  .btn{appearance:none;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:999px;
+    padding:9px 18px;font-size:15px;cursor:pointer;font-family:inherit}
+  .btn:active{transform:scale(.98)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+  .btn.big{width:100%;padding:14px;font-size:17px;border-radius:12px}
+  .btn[disabled]{opacity:.55;cursor:not-allowed}
+  .btn.danger{color:var(--danger);border-color:#f0c6c2}
+  .btn.danger.confirm{background:var(--danger);color:#fff;border-color:var(--danger)}
+
+  /* 场景选择 */
+  .scenes{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .scene{border:1.5px solid var(--line);background:#fff;border-radius:12px;padding:12px 10px;text-align:left;
+    cursor:pointer;font-family:inherit;color:var(--ink)}
+  .scene .t{font-size:16px;font-weight:600;display:block}
+  .scene .d{font-size:12.5px;color:var(--muted);display:block;margin-top:2px;line-height:1.45}
+  .scene[aria-pressed="true"]{border-color:var(--teal);background:var(--teal-soft)}
+
+  /* 提示框 */
+  .notice{display:none;border-radius:12px;padding:12px 14px;font-size:14.5px;margin-top:16px;line-height:1.55}
+  .notice.error{display:block;background:var(--danger-soft);color:var(--danger);border:1px solid #f0c6c2}
+  .notice.info{display:block;background:var(--teal-soft);color:#0b4f4a;border:1px solid #bfe0d9}
+
+  /* 加载 */
+  .loading{display:none;text-align:center;padding:26px 10px}
+  .loading.show{display:block}
+  .spinner{width:40px;height:40px;margin:0 auto 12px;border-radius:50%;
+    border:4px solid var(--line);border-top-color:var(--accent);animation:spin 0.9s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .loading .hint{color:var(--muted);font-size:13.5px}
+
+  /* 报告 */
+  .report{display:none}
+  .report.show{display:block}
+  .report .photo-line{display:flex;gap:12px;align-items:center}
+  .report .photo-line img{width:64px;height:64px;object-fit:cover;border-radius:12px}
+  .report .scene-tag{font-size:12.5px;color:var(--teal);background:var(--teal-soft);
+    padding:2px 9px;border-radius:999px;font-weight:600}
+  .report .date{font-size:12.5px;color:var(--muted)}
+  .headline{font-family:"Songti SC","STSong","SimSun",serif;font-size:23px;line-height:1.45;font-weight:700;margin:14px 0 4px}
+  .gapbox{display:flex;align-items:center;gap:14px;background:var(--accent-soft);border-radius:12px;padding:12px 14px;margin-top:12px}
+  .gapbox .num{font-size:36px;font-weight:800;color:var(--accent);line-height:1}
+  .gapbox .lbl{font-size:13px;font-weight:700}
+  .gapbox .desc{font-size:13px;color:var(--muted);line-height:1.5}
+  .radar-box{text-align:center;margin-top:8px}
+  .radar-box svg{max-width:330px;width:100%;height:auto}
+  .dim{border-top:1px solid var(--line);padding:12px 0}
+  .dim:first-of-type{border-top:none}
+  .dim .head{display:flex;justify-content:space-between;align-items:baseline}
+  .dim .name{font-weight:700;font-size:16px}
+  .dim .score{font-weight:800;color:var(--teal);font-size:17px}
+  .bar{height:8px;background:#f0e7d3;border-radius:999px;margin:7px 0 8px;overflow:hidden}
+  .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--teal),#35a08f);border-radius:999px}
+  .dim .read{font-size:14.5px;margin:0}
+  .dim .tip{font-size:13.5px;color:var(--muted);margin:3px 0 0}
+  .dim .tip b{color:var(--accent);font-weight:600}
+  .summary{background:var(--teal-soft);border-radius:12px;padding:12px 14px;font-size:14.5px;margin-top:6px;line-height:1.65}
+  .summary p{margin:0 0 6px}
+  .summary p:last-child{margin:0}
+  .shareline{border:1.5px dashed var(--line);border-radius:12px;padding:12px 14px;font-size:15px;background:#fff;margin-top:14px}
+  .report .actions{display:flex;gap:10px;margin-top:16px}
+  .report .actions .btn{flex:1}
+
+  /* 历史 */
+  .history-item{display:flex;gap:12px;align-items:center;padding:11px 0;border-top:1px solid var(--line)}
+  .history-item:first-of-type{border-top:none}
+  .history-item img{width:52px;height:52px;object-fit:cover;border-radius:10px;flex:none}
+  .history-item .info{flex:1;min-width:0}
+  .history-item .hl{font-weight:600;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .history-item .meta{font-size:12.5px;color:var(--muted)}
+  .history-item .view{flex:none}
+  .history-item .del{flex:none;padding:7px 12px;font-size:13.5px}
+  .empty{color:var(--muted);font-size:14px;text-align:center;padding:10px 0}
+
+  footer{margin-top:28px;color:var(--muted);font-size:12.5px;line-height:1.7;text-align:center;padding:0 6px}
+  .hidden-input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <span class="badge">AI 第一印象测评</span>
+    <h1>初见<span class="accent">雷达</span></h1>
+    <p class="sub">测测你给人的第一印象<br>上传一张正面照，看看陌生人眼里的你</p>
+  </header>
+
+  <!-- 步骤1：上传 -->
+  <section class="card" id="uploadCard">
+    <h2><span class="step">1</span>上传一张正面照</h2>
+    <div class="uploader" id="uploader" role="button" tabindex="0" aria-label="选择照片">
+      <div class="cam">📷</div>
+      <div class="big">点这里选照片</div>
+      <div class="small">相册或拍照都可以 · 正面、光线亮一点效果更好<br>照片会在你手机里先压缩，再发送给分析接口</div>
+    </div>
+    <div class="preview" id="preview">
+      <img id="previewImg" alt="你上传的照片预览">
+      <div class="row">
+        <button class="btn" id="changePhotoBtn" type="button">换一张</button>
+        <button class="btn danger" id="removePhotoBtn" type="button">移除</button>
+      </div>
+    </div>
+    <input class="hidden-input" type="file" id="fileInput" accept="image/*">
+  </section>
+
+  <!-- 步骤2：场景 -->
+  <section class="card">
+    <h2><span class="step">2</span>这次想测哪个场景？</h2>
+    <div class="scenes" id="scenes">
+      <button class="scene" type="button" data-scene="初次见面" aria-pressed="true">
+        <span class="t">初次见面</span><span class="d">相亲、初次约会、认识新朋友</span>
+      </button>
+      <button class="scene" type="button" data-scene="求职面试" aria-pressed="false">
+        <span class="t">求职面试</span><span class="d">面试官 3 秒内的专业度判断</span>
+      </button>
+      <button class="scene" type="button" data-scene="社交聚会" aria-pressed="false">
+        <span class="t">社交聚会</span><span class="d">饭局、活动上想不想跟你多聊</span>
+      </button>
+      <button class="scene" type="button" data-scene="线上头像" aria-pressed="false">
+        <span class="t">线上头像</span><span class="d">微信、社交软件头像的观感</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- 步骤3：开始 -->
+  <section class="card">
+    <h2><span class="step">3</span>开始分析</h2>
+    <button class="btn primary big" id="analyzeBtn" type="button">开始分析</button>
+    <div class="notice" id="notice" role="alert"></div>
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <div>AI 正在看你的照片…</div>
+      <div class="hint" id="loadingHint">正在读你的表情和眼神</div>
+    </div>
+  </section>
+
+  <!-- 报告 -->
+  <section class="card report" id="reportCard" aria-live="polite"></section>
+
+  <!-- 历史 -->
+  <section class="card" id="historyCard">
+    <h2>我的测评记录</h2>
+    <div id="historyList"></div>
+    <p class="empty" id="historyEmpty">还没有记录，测一张试试吧。</p>
+  </section>
+
+  <footer>
+    本工具是娱乐测评，AI 的判断基于一张照片的可见信息，结果仅供参考，别太当真，更别拿它定义自己或别人。<br>
+    隐私：你的照片只发送给分析接口用于本次测评，本页面不保存照片原图；测评记录和压缩后的小缩略图只存在你这台设备的浏览器里（localStorage），清除浏览器数据即会消失。
+  </footer>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   ★ 部署时必须改这里 ★
+   把下面这个地址换成你自己的 Cloudflare Worker 地址，例如：
+   const WORKER_URL = "https://chujian-radar.zhangsan.workers.dev/analyze";
+   在没替换之前，页面会明确提示“分析服务还没配置好”，不会假装出报告。
+   ============================================================ */
+const WORKER_URL = "https://chujian-radar.david270901246.workers.dev/analyze";
+
+const DIMENSIONS = ["亲和力", "可信度", "专业度", "好感度", "接近感", "气场", "记忆点"];
+const HISTORY_KEY = "chujian-radar-history-v1";
+const HISTORY_MAX = 20;
+
+/* ---------- 状态 ---------- */
+let photo = null;            // { sendBase64: string, dataUrl: string, thumbUrl: string }
+let selectedScene = "初次见面";
+let currentReport = null;    // { id, ts, scene, thumb, report }
+
+/* ---------- 工具函数 ---------- */
+function $(id){ return document.getElementById(id); }
+function workerConfigured(){
+  return typeof WORKER_URL === "string"
+    && WORKER_URL.startsWith("https://")
+    && WORKER_URL.indexOf("待填") === -1
+    && WORKER_URL.indexOf("<") === -1
+    && WORKER_URL.indexOf(">") === -1;
+}
+function showNotice(type, text){
+  const n = $("notice");
+  n.className = "notice " + type;
+  n.textContent = text;
+}
+function hideNotice(){
+  const n = $("notice");
+  n.className = "notice";
+  n.textContent = "";
+}
+function clampScore(v){
+  const n = Math.round(Number(v));
+  if (isNaN(n)) return 0;
+  return Math.max(0, Math.min(100, n));
+}
+function fmtDate(ts){
+  const d = new Date(ts);
+  const p = function(x){ return (x < 10 ? "0" : "") + x; };
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate())
+    + " " + p(d.getHours()) + ":" + p(d.getMinutes());
+}
+function gapDesc(gap){
+  if (gap >= 70) return "落差很大：别人第一眼看到的你，和你以为的自己差得很远——这种反差感往往最抓人。";
+  if (gap >= 45) return "落差不小：你的第一印象里有不少“没想到”，用好了就是记忆点。";
+  if (gap >= 25) return "落差适中：别人看到的你和你以为的差不多，稍微有点小惊喜。";
+  return "落差很小：你给人的感觉和你本人高度一致，表里如一型。";
+}
+
+/* ---------- 照片处理：canvas 压缩 ---------- */
+async function loadImageBitmap(file){
+  if (window.createImageBitmap) {
+    try { return await createImageBitmap(file, { imageOrientation: "from-image" }); }
+    catch (e) { /* 老浏览器不支持带选项，退回普通方式 */ }
+    try { return await createImageBitmap(file); } catch (e) { /* 继续退回 Image */ }
+  }
+  return new Promise(function(resolve, reject){
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = function(){ resolve(img); };
+    img.onerror = function(){ URL.revokeObjectURL(url); reject(new Error("图片读取失败")); };
+    img.src = url;
+  });
+}
+function drawScaled(source, maxSide, quality){
+  const w0 = source.width, h0 = source.height;
+  const scale = Math.min(1, maxSide / Math.max(w0, h0));
+  const w = Math.max(1, Math.round(w0 * scale));
+  const h = Math.max(1, Math.round(h0 * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(source, 0, 0, w, h);
+  return canvas.toDataURL("image/jpeg", quality);
+}
+async function processFile(file){
+  if (!file) return;
+  if (!/^image\//.test(file.type) && !/\.(jpe?g|png|webp|heic|heif)$/i.test(file.name || "")) {
+    showNotice("error", "请选择一张图片文件（JPG / PNG 都可以）。");
+    return;
+  }
+  hideNotice();
+  try {
+    const bmp = await loadImageBitmap(file);
+    // 发送用：最长边 ≤1024px，JPEG 质量 0.82
+    const dataUrl = drawScaled(bmp, 1024, 0.82);
+    // 历史缩略图：最长边 240px，质量 0.7，只存本机浏览器
+    const thumbUrl = drawScaled(bmp, 240, 0.7);
+    if (bmp.close) bmp.close();
+    photo = {
+      dataUrl: dataUrl,
+      thumbUrl: thumbUrl,
+      sendBase64: dataUrl.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "")
+    };
+    $("previewImg").src = dataUrl;
+    $("preview").style.display = "block";
+    $("uploader").style.display = "none";
+  } catch (e) {
+    showNotice("error", "这张照片读取失败，换一张试试？（太大的图或特殊格式可能读不了）");
+  }
+}
+
+/* ---------- 场景选择 ---------- */
+$("scenes").addEventListener("click", function(ev){
+  const btn = ev.target.closest(".scene");
+  if (!btn) return;
+  selectedScene = btn.getAttribute("data-scene");
+  const all = $("scenes").querySelectorAll(".scene");
+  all.forEach(function(b){ b.setAttribute("aria-pressed", b === btn ? "true" : "false"); });
+});
+
+/* ---------- 上传交互 ---------- */
+const fileInput = $("fileInput");
+$("uploader").addEventListener("click", function(){ fileInput.click(); });
+$("uploader").addEventListener("keydown", function(ev){
+  if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); fileInput.click(); }
+});
+$("changePhotoBtn").addEventListener("click", function(){ fileInput.click(); });
+$("removePhotoBtn").addEventListener("click", function(){
+  photo = null;
+  fileInput.value = "";
+  $("preview").style.display = "none";
+  $("uploader").style.display = "block";
+});
+fileInput.addEventListener("change", function(){
+  if (fileInput.files && fileInput.files[0]) processFile(fileInput.files[0]);
+  fileInput.value = ""; // 允许重复选同一张
+});
+
+/* ---------- 报告数据规整（兼容数组 / 对象两种维度格式） ---------- */
+function normalizeReport(raw, scene){
+  let dims = [];
+  if (Array.isArray(raw.dimensions)) {
+    dims = raw.dimensions.map(function(d){
+      return { name: d.name, score: clampScore(d.score), read: String(d.read || ""), tip: String(d.tip || "") };
+    });
+  } else if (raw.dimensions && typeof raw.dimensions === "object") {
+    dims = DIMENSIONS.map(function(name){
+      const d = raw.dimensions[name] || {};
+      return { name: name, score: clampScore(d.score), read: String(d.read || ""), tip: String(d.tip || "") };
+    });
+  }
+  // 按固定顺序排，只保留 7 个维度里有名字的
+  const byName = {};
+  dims.forEach(function(d){ if (d.name) byName[d.name] = d; });
+  dims = DIMENSIONS.filter(function(n){ return byName[n]; }).map(function(n){ return byName[n]; });
+  return {
+    headline: String(raw.headline || "这是 AI 给你的第一印象"),
+    gapIndex: clampScore(raw.gapIndex != null ? raw.gapIndex : raw.gap_index),
+    gapNote: String(raw.gapNote || raw.gap_note || ""),
+    dimensions: dims,
+    overall: String(raw.overall || ""),
+    shareLine: String(raw.shareLine || raw.share_line || ""),
+    scene: String(raw.scene || scene || "")
+  };
+}
+
+/* ---------- 雷达图（内联 SVG 手绘） ---------- */
+function radarSVG(dims){
+  const cx = 170, cy = 168, R = 108, labelR = 140;
+  function pt(i, ratio){
+    const ang = -Math.PI / 2 + i * (2 * Math.PI / dims.length);
+    return [cx + R * ratio * Math.cos(ang), cy + R * ratio * Math.sin(ang)];
+  }
+  function anchor(i){
+    const ang = -Math.PI / 2 + i * (2 * Math.PI / dims.length);
+    const c = Math.cos(ang);
+    if (c > 0.35) return "start";
+    if (c < -0.35) return "end";
+    return "middle";
+  }
+  let s = '<svg viewBox="0 0 340 336" role="img" aria-label="七维第一印象雷达图" xmlns="http://www.w3.org/2000/svg">';
+  // 网格环
+  [1, 0.75, 0.5, 0.25].forEach(function(r){
+    const pts = dims.map(function(_, i){ return pt(i, r).join(","); }).join(" ");
+    s += '<polygon points="' + pts + '" fill="none" stroke="#eadfce" stroke-width="1"/>';
+  });
+  // 轴线
+  dims.forEach(function(_, i){
+    const p = pt(i, 1);
+    s += '<line x1="' + cx + '" y1="' + cy + '" x2="' + p[0] + '" y2="' + p[1] + '" stroke="#eadfce" stroke-width="1"/>';
+  });
+  // 数据多边形
+  const dataPts = dims.map(function(d, i){ return pt(i, d.score / 100).join(","); }).join(" ");
+  s += '<polygon points="' + dataPts + '" fill="rgba(15,118,110,0.20)" stroke="#0f766e" stroke-width="2.5" stroke-linejoin="round"/>';
+  // 数据点 + 标签
+  dims.forEach(function(d, i){
+    const p = pt(i, d.score / 100);
+    s += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="3.5" fill="#d9481c"/>';
+    const ang = -Math.PI / 2 + i * (2 * Math.PI / dims.length);
+    const lx = cx + labelR * Math.cos(ang);
+    const ly = cy + labelR * Math.sin(ang);
+    const a = anchor(i);
+    s += '<text x="' + lx + '" y="' + (ly - 2) + '" text-anchor="' + a + '" font-size="13.5" font-weight="700" fill="#262019">' + escapeHtml(d.name) + '</text>';
+    s += '<text x="' + lx + '" y="' + (ly + 15) + '" text-anchor="' + a + '" font-size="12.5" font-weight="700" fill="#0f766e">' + d.score + '</text>';
+  });
+  s += "</svg>";
+  return s;
+}
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, function(c){
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+  });
+}
+
+/* ---------- 渲染报告 ---------- */
+function renderReport(entry){
+  currentReport = entry;
+  const r = entry.report;
+  const card = $("reportCard");
+  let strongest = r.dimensions[0], weakest = r.dimensions[0];
+  r.dimensions.forEach(function(d){
+    if (d.score > strongest.score) strongest = d;
+    if (d.score < weakest.score) weakest = d;
+  });
+  let html = "";
+  html += '<div class="photo-line">'
+    + (entry.thumb ? '<img src="' + entry.thumb + '" alt="测评照片缩略图">' : "")
+    + '<div><span class="scene-tag">' + escapeHtml(r.scene || entry.scene || "") + "</span>"
+    + '<div class="date">' + fmtDate(entry.ts) + " 测评</div></div></div>";
+  html += '<div class="headline">' + escapeHtml(r.headline) + "</div>";
+  html += '<div class="gapbox"><div class="num">' + r.gapIndex + '</div><div>'
+    + '<div class="lbl">落差指数（满分 100）</div>'
+    + '<div class="desc">' + escapeHtml(r.gapNote || gapDesc(r.gapIndex)) + "</div></div></div>";
+  html += '<div class="radar-box">' + radarSVG(r.dimensions) + "</div>";
+  r.dimensions.forEach(function(d){
+    html += '<div class="dim"><div class="head"><span class="name">' + escapeHtml(d.name)
+      + '</span><span class="score">' + d.score + "</span></div>"
+      + '<div class="bar"><i style="width:' + d.score + '%"></i></div>'
+      + '<p class="read">' + escapeHtml(d.read) + "</p>"
+      + (d.tip ? '<p class="tip"><b>微调建议：</b>' + escapeHtml(d.tip) + "</p>" : "")
+      + "</div>";
+  });
+  if (strongest && weakest && strongest.name !== weakest.name) {
+    html += '<div class="summary"><p><b>最强维度：' + escapeHtml(strongest.name) + "（" + strongest.score
+      + " 分）</b>——这是别人第一眼最容易记住你的地方。</p>"
+      + "<p><b>最可提升：" + escapeHtml(weakest.name) + "（" + weakest.score
+      + " 分）</b>——不用大改，照着上面的微调建议动一个小地方就够了。</p>"
+      + (r.overall ? "<p>" + escapeHtml(r.overall) + "</p>" : "")
+      + "</div>";
+  } else if (r.overall) {
+    html += '<div class="summary"><p>' + escapeHtml(r.overall) + "</p></div>";
+  }
+  if (r.shareLine) {
+    html += '<div class="shareline">' + escapeHtml(r.shareLine) + "</div>";
+  }
+  html += '<div class="actions">'
+    + '<button class="btn primary" id="copyShareBtn" type="button">复制分享文案</button>'
+    + '<button class="btn" id="againBtn" type="button">再测一张</button></div>';
+  card.innerHTML = html;
+  card.classList.add("show");
+
+  $("copyShareBtn").addEventListener("click", async function(){
+    const btn = this;
+    const text = r.shareLine || r.headline;
+    let ok = false;
+    try { await navigator.clipboard.writeText(text); ok = true; }
+    catch (e) {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try { ok = document.execCommand("copy"); } catch (e2) { ok = false; }
+      document.body.removeChild(ta);
+    }
+    btn.textContent = ok ? "已复制，去发给朋友吧" : "复制失败，长按文案手动复制";
+    setTimeout(function(){ btn.textContent = "复制分享文案"; }, 2200);
+  });
+  $("againBtn").addEventListener("click", function(){
+    card.classList.remove("show");
+    card.innerHTML = "";
+    currentReport = null;
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+  card.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+/* ---------- 历史记录（localStorage，只存本机） ---------- */
+function loadHistory(){
+  try {
+    const arr = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
+    return Array.isArray(arr) ? arr : [];
+  } catch (e) { return []; }
+}
+function saveHistory(list){
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(list)); return true; }
+  catch (e) { return false; }
+}
+function addToHistory(entry){
+  const list = loadHistory();
+  list.unshift(entry);
+  while (list.length > HISTORY_MAX) list.pop();
+  if (!saveHistory(list)) {
+    // 空间不够：去掉最旧一条的缩略图再试一次
+    if (list.length > 1) { list[list.length - 1].thumb = ""; }
+    if (!saveHistory(list) && list[0]) { list[0].thumb = ""; saveHistory(list); }
+  }
+  renderHistory();
+}
+function renderHistory(){
+  const list = loadHistory();
+  const box = $("historyList");
+  $("historyEmpty").style.display = list.length ? "none" : "block";
+  box.innerHTML = "";
+  list.forEach(function(entry){
+    const item = document.createElement("div");
+    item.className = "history-item";
+    item.innerHTML =
+      (entry.thumb ? '<img src="' + entry.thumb + '" alt="">' : "")
+      + '<div class="info"><div class="hl">' + escapeHtml(entry.report.headline || "第一印象报告") + "</div>"
+      + '<div class="meta">' + escapeHtml(entry.scene || "") + " · " + fmtDate(entry.ts)
+      + " · 落差指数 " + (entry.report.gapIndex != null ? entry.report.gapIndex : "-") + "</div></div>";
+    const viewBtn = document.createElement("button");
+    viewBtn.className = "btn view";
+    viewBtn.type = "button";
+    viewBtn.textContent = "回看";
+    viewBtn.addEventListener("click", function(){ renderReport(entry); });
+    const delBtn = document.createElement("button");
+    delBtn.className = "btn danger del";
+    delBtn.type = "button";
+    delBtn.textContent = "删除";
+    let armed = false, timer = null;
+    delBtn.addEventListener("click", function(){
+      if (!armed) {
+        armed = true;
+        delBtn.textContent = "确认删除？";
+        delBtn.classList.add("confirm");
+        timer = setTimeout(function(){
+          armed = false; delBtn.textContent = "删除"; delBtn.classList.remove("confirm");
+        }, 3000);
+        return;
+      }
+      clearTimeout(timer);
+      const next = loadHistory().filter(function(x){ return x.id !== entry.id; });
+      saveHistory(next);
+      if (currentReport && currentReport.id === entry.id) {
+        $("reportCard").classList.remove("show");
+        $("reportCard").innerHTML = "";
+        currentReport = null;
+      }
+      renderHistory();
+    });
+    item.appendChild(viewBtn);
+    item.appendChild(delBtn);
+    box.appendChild(item);
+  });
+}
+
+/* ---------- 开始分析 ---------- */
+const LOADING_HINTS = ["正在读你的表情和眼神", "正在看你的着装和仪态", "正在打量背景和光线", "正在生成你的第一印象报告"];
+let hintTimer = null;
+function setLoading(on){
+  $("loading").classList.toggle("show", on);
+  $("analyzeBtn").disabled = on;
+  if (on) {
+    let i = 0;
+    $("loadingHint").textContent = LOADING_HINTS[0];
+    hintTimer = setInterval(function(){
+      i = (i + 1) % LOADING_HINTS.length;
+      $("loadingHint").textContent = LOADING_HINTS[i];
+    }, 2600);
+  } else if (hintTimer) {
+    clearInterval(hintTimer); hintTimer = null;
+  }
+}
+
+$("analyzeBtn").addEventListener("click", async function(){
+  hideNotice();
+  if (!photo) {
+    showNotice("error", "先上传一张正面照，再点开始分析。");
+    $("uploadCard").scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
+  if (!workerConfigured()) {
+    showNotice("error", "分析服务还没配置好：WORKER_URL 还是占位地址，网站管理员需要先按 README 部署 Cloudflare Worker，再把真实地址填进 index.html 顶部。配置好之前，这里不会生成任何报告。");
+    return;
+  }
+  setLoading(true);
+  try {
+    const resp = await fetch(WORKER_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image_base64: photo.sendBase64, scene: selectedScene })
+    });
+    let data = null;
+    try { data = await resp.json(); } catch (e) { data = null; }
+    if (!resp.ok || !data || data.error) {
+      let msg;
+      const code = data && data.error;
+      if (code === "not_configured") {
+        msg = "分析服务还没配置好：Worker 里还没有填百炼 API Key（DASHSCOPE_API_KEY）。请网站管理员按 README 先完成 Worker 部署。";
+      } else if (code === "image_too_large") {
+        msg = "照片太大了，服务器拒绝接收。换一张小一点的照片再试。";
+      } else if (data && data.message) {
+        msg = data.message;
+      } else if (resp.status === 502) {
+        msg = "AI 分析服务暂时不可用，请稍后再试一次。";
+      } else {
+        msg = "分析失败（服务器返回 " + resp.status + "），请稍后再试。";
+      }
+      showNotice("error", msg);
+      return;
+    }
+    const report = normalizeReport(data, selectedScene);
+    if (!report.dimensions.length) {
+      showNotice("error", "AI 返回的报告不完整，请再点一次开始分析重试。");
+      return;
+    }
+    const entry = {
+      id: "r" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+      ts: Date.now(),
+      scene: selectedScene,
+      thumb: photo.thumbUrl,
+      report: report
+    };
+    addToHistory(entry);
+    showNotice("info", "分析完成，报告在下面，记录也存好了（只存在你这台设备的浏览器里）。");
+    renderReport(entry);
+  } catch (e) {
+    showNotice("error", "连不上分析服务，请检查网络后再试。如果一直连不上，可能是网站管理员还没部署好 Worker。");
+  } finally {
+    setLoading(false);
+  }
+});
+
+/* ---------- 初始化 ---------- */
+renderHistory();
+if (!workerConfigured()) {
+  showNotice("info", "提醒：这个页面还没连上分析服务（WORKER_URL 未配置），部署 Cloudflare Worker 并填好地址后就能正式测评。");
+}
+</script>
+</body>
+</html>
