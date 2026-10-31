@@ -1,0 +1,17 @@
+# 初见雷达 · Cloudflare Worker 配置
+# 部署：在本目录执行 `npx wrangler deploy`（先 `npx wrangler login` 登录一次）
+name = "chujian-radar"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+# 可选：模型名。默认 qwen3-vl-plus，想换模型改这里（或删掉这段，用代码里的默认值）
+[vars]
+MODEL = "qwen3-vl-plus"
+
+# ★ 千万不要把 DASHSCOPE_API_KEY 写进这个文件 ★
+# 它会跟着代码一起提交到 GitHub，等于把钥匙贴在大门上。
+# 正确做法（二选一）：
+#   1) 命令行：npx wrangler secret put DASHSCOPE_API_KEY
+#   2) Cloudflare 后台：Workers & Pages → chujian-radar → Settings →
+#      Variables and Secrets → 添加 Secret，名字填 DASHSCOPE_API_KEY
