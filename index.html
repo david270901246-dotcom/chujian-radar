@@ -68,6 +68,15 @@
   .scene .d{font-size:12.5px;color:var(--muted);display:block;margin-top:2px;line-height:1.45}
   .scene[aria-pressed="true"]{border-color:var(--teal);background:var(--teal-soft)}
 
+  /* 兑换码 */
+  .code-row{display:flex;gap:10px}
+  .code-input{flex:1;min-width:0;border:1.5px solid var(--line);border-radius:12px;padding:11px 12px;
+    font-size:16px;font-family:inherit;text-transform:uppercase;letter-spacing:.04em;background:#fff;color:var(--ink)}
+  .code-input:focus{outline:none;border-color:var(--teal)}
+  .code-status{font-size:13.5px;margin-top:9px;min-height:1.4em;color:var(--muted);line-height:1.5}
+  .code-status.ok{color:var(--teal)}
+  .code-status.err{color:var(--danger)}
+
   /* 提示框 */
   .notice{display:none;border-radius:12px;padding:12px 14px;font-size:14.5px;margin-top:16px;line-height:1.55}
   .notice.error{display:block;background:var(--danger-soft);color:var(--danger);border:1px solid #f0c6c2}
@@ -174,9 +183,19 @@
     </div>
   </section>
 
-  <!-- 步骤3：开始 -->
+  <!-- 步骤3：兑换码 -->
   <section class="card">
-    <h2><span class="step">3</span>开始分析</h2>
+    <h2><span class="step">3</span>输入兑换码</h2>
+    <div class="code-row">
+      <input class="code-input" id="codeInput" type="text" placeholder="CJ-XXXXXX-XXXXXX" autocomplete="off" autocapitalize="characters" spellcheck="false">
+      <button class="btn" id="checkCodeBtn" type="button">查剩余次数</button>
+    </div>
+    <div class="code-status" id="codeStatus">购买后会收到一个兑换码，一个码可以测 3 次，输一次会记住。</div>
+  </section>
+
+  <!-- 步骤4：开始 -->
+  <section class="card">
+    <h2><span class="step">4</span>开始分析</h2>
     <button class="btn primary big" id="analyzeBtn" type="button">开始分析</button>
     <div class="notice" id="notice" role="alert"></div>
     <div class="loading" id="loading">
@@ -211,9 +230,11 @@
    在没替换之前，页面会明确提示“分析服务还没配置好”，不会假装出报告。
    ============================================================ */
 const WORKER_URL = "https://chujian-radar.david270901246.workers.dev/analyze";
+const CHECK_CODE_URL = WORKER_URL.replace(/\/analyze\/?$/, "/check-code");
 
 const DIMENSIONS = ["亲和力", "可信度", "专业度", "好感度", "接近感", "气场", "记忆点"];
 const HISTORY_KEY = "chujian-radar-history-v1";
+const CODE_KEY = "chujian_code";
 const HISTORY_MAX = 20;
 
 /* ---------- 状态 ---------- */
@@ -435,6 +456,9 @@ function renderReport(entry){
   html += '<div class="gapbox"><div class="num">' + r.gapIndex + '</div><div>'
     + '<div class="lbl">落差指数（满分 100）</div>'
     + '<div class="desc">' + escapeHtml(r.gapNote || gapDesc(r.gapIndex)) + "</div></div></div>";
+  if (typeof entry.usesLeft === "number") {
+    html += '<div class="summary" style="margin-top:12px"><p>本兑换码还剩 <b>' + entry.usesLeft + "</b> 次，用完再拍一个就能继续测。</p></div>";
+  }
   html += '<div class="radar-box">' + radarSVG(r.dimensions) + "</div>";
   r.dimensions.forEach(function(d){
     html += '<div class="dim"><div class="head"><span class="name">' + escapeHtml(d.name)
@@ -560,6 +584,52 @@ function renderHistory(){
   });
 }
 
+/* ---------- 兑换码 ---------- */
+function currentCode(){
+  return ($("codeInput").value || "").replace(/\s+/g, "").toUpperCase();
+}
+function setCodeStatus(type, text){
+  const s = $("codeStatus");
+  s.className = "code-status" + (type ? " " + type : "");
+  s.textContent = text;
+}
+async function checkCode(){
+  const code = currentCode();
+  try { localStorage.setItem(CODE_KEY, code); } catch (e) {}
+  if (!code) {
+    setCodeStatus("err", "先输入兑换码再查。购买后会收到一个兑换码，填进来就能测。");
+    return;
+  }
+  if (!workerConfigured()) {
+    setCodeStatus("err", "分析服务还没配置好，暂时查不了兑换码。");
+    return;
+  }
+  setCodeStatus("", "正在查这个码还剩几次…");
+  try {
+    const resp = await fetch(CHECK_CODE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: code })
+    });
+    let data = null;
+    try { data = await resp.json(); } catch (e) { data = null; }
+    if (resp.ok && data && data.valid) {
+      setCodeStatus("ok", "兑换码可用，还剩 " + data.usesLeft + " 次。");
+    } else {
+      setCodeStatus("err", (data && data.message) || "兑换码查询失败，请稍后再试。");
+    }
+  } catch (e) {
+    setCodeStatus("err", "连不上分析服务，暂时查不了兑换码，请检查网络后再试。");
+  }
+}
+$("checkCodeBtn").addEventListener("click", function(){ checkCode(); });
+$("codeInput").addEventListener("blur", function(){
+  if (currentCode()) checkCode();
+});
+$("codeInput").addEventListener("input", function(){
+  try { localStorage.setItem(CODE_KEY, currentCode()); } catch (e) {}
+});
+
 /* ---------- 开始分析 ---------- */
 const LOADING_HINTS = ["正在读你的表情和眼神", "正在看你的着装和仪态", "正在打量背景和光线", "正在生成你的第一印象报告"];
 let hintTimer = null;
@@ -594,7 +664,7 @@ $("analyzeBtn").addEventListener("click", async function(){
     const resp = await fetch(WORKER_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ image_base64: photo.sendBase64, scene: selectedScene })
+      body: JSON.stringify({ image_base64: photo.sendBase64, scene: selectedScene, code: currentCode() })
     });
     let data = null;
     try { data = await resp.json(); } catch (e) { data = null; }
@@ -605,6 +675,11 @@ $("analyzeBtn").addEventListener("click", async function(){
         msg = "分析服务还没配置好：Worker 里还没有填百炼 API Key（DASHSCOPE_API_KEY）。请网站管理员按 README 先完成 Worker 部署。";
       } else if (code === "image_too_large") {
         msg = "照片太大了，服务器拒绝接收。换一张小一点的照片再试。";
+      } else if (code && code.indexOf("code_") === 0) {
+        msg = (data && data.message) || "兑换码有问题，请检查后重试。";
+        setCodeStatus("err", msg);
+        $("codeInput").scrollIntoView({ behavior: "smooth", block: "center" });
+        $("codeInput").focus();
       } else if (data && data.message) {
         msg = data.message;
       } else if (resp.status === 502) {
@@ -628,6 +703,8 @@ $("analyzeBtn").addEventListener("click", async function(){
       report: report
     };
     addToHistory(entry);
+    // 剩余次数只挂在本次展示的条目上，不写进历史存储（那是当时的数字，之后会变）
+    entry.usesLeft = (typeof data.usesLeft === "number" ? data.usesLeft : null);
     showNotice("info", "分析完成，报告在下面，记录也存好了（只存在你这台设备的浏览器里）。");
     renderReport(entry);
   } catch (e) {
@@ -638,6 +715,10 @@ $("analyzeBtn").addEventListener("click", async function(){
 });
 
 /* ---------- 初始化 ---------- */
+try {
+  const savedCode = localStorage.getItem(CODE_KEY);
+  if (savedCode) $("codeInput").value = savedCode;
+} catch (e) {}
 renderHistory();
 if (!workerConfigured()) {
   showNotice("info", "提醒：这个页面还没连上分析服务（WORKER_URL 未配置），部署 Cloudflare Worker 并填好地址后就能正式测评。");
