@@ -12,6 +12,9 @@
 * 或后台「Settings → Variables and Secrets」添加为 Secret，
 * 绝不要写进代码或提交到 GitHub。
 * MODEL 可选。默认 "qwen3-vl-plus"（2026-10-31 实测：旧名 qwen-vl-plus 在当前百炼业务空间返回 model_not_found）。
+* LIMITS 可选但生产环境必须绑定。Cloudflare KV 命名空间绑定，存两道限流
+* 保险的每日计数（全站每日上限 + 单 IP 每日上限，见下方常量）。本地调试
+* 不绑 KV 时自动跳过限流；生产环境不绑定 = 没有这两道保险，不要漏。
 *
 * CORS：现在允许 * 方便调试。上线稳定后建议收紧：把 ALLOW_ORIGIN 改成你的
 * GitHub Pages 域名（如 "https://你的用户名.github.io"），防止别人盗用你的额度。
@@ -23,6 +26,10 @@ const DASHSCOPE_URL =
 "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
 const DEFAULT_MODEL = "qwen3-vl-plus";
 const MAX_IMAGE_BASE64_LEN = 2_500_000; // 约 2.5MB 字符（base64 后）
+// 两道限流保险（计数存 KV 绑定 env.LIMITS，见文件头说明）：想调整松紧改这两个数字重新部署
+const GLOBAL_DAILY_LIMIT = 100; // 全站每天最多分析 100 次（熔断，防刷爆百炼额度）
+const IP_DAILY_LIMIT = 5; // 单个 IP 每天最多分析 5 次
+const LIMIT_TTL_SECONDS = 172800; // 计数 key 保留 48 小时后自动过期清理
 const SCENES = ["初次见面", "求职面试", "社交聚会", "线上头像"];
 const DIMENSIONS = ["亲和力", "可信度", "专业度", "好感度", "接近感", "气场", "记忆点"];
 
@@ -156,6 +163,65 @@ body: JSON.stringify(body),
 return resp;
 }
 
+/** 今天的日期字符串（Asia/Shanghai 时区，YYYY-MM-DD）。用 Intl 取上海时间，不能用 UTC 日期，否则北京时间凌晨会被算到前一天 */
+function shanghaiToday() {
+const parts = new Intl.DateTimeFormat("en-CA", {
+timeZone: "Asia/Shanghai",
+year: "numeric",
+month: "2-digit",
+day: "2-digit",
+}).formatToParts(new Date());
+const p = {};
+for (const part of parts) p[part.type] = part.value;
+return p.year + "-" + p.month + "-" + p.day;
+}
+
+/** 访客 IP：优先 Cloudflare 注入的 CF-Connecting-IP，其次 X-Forwarded-For 第一段，都没有用 "unknown" */
+function clientIp(request) {
+const cf = request.headers.get("CF-Connecting-IP");
+if (cf) return cf.trim();
+const xff = request.headers.get("X-Forwarded-For");
+if (xff) return xff.split(",")[0].trim();
+return "unknown";
+}
+
+/** KV 计数容错解析：读不到/不是数字一律当 0 */
+function parseCount(v) {
+const n = parseInt(v, 10);
+return isNaN(n) ? 0 : n;
+}
+
+/**
+ * 两道限流保险：全站每日上限 + 单 IP 每日上限，计数存 KV（env.LIMITS）。
+ * 没绑 KV（本地调试）时跳过限流直接放行；生产环境必须绑定，见文件头说明。
+ * 返回 null = 放行；返回 Response = 已触发限流，直接把它返回给前端。
+ * 通过检查后先把两个计数各 +1 再放行：先计数后调用是为了防刷爆额度，
+ * 代价是上游调用失败也会计入次数——这是已知取舍（失败重试会消耗名额）。
+ */
+async function checkRateLimits(request, env) {
+if (!env.LIMITS) return null;
+const date = shanghaiToday();
+const globalKey = "g:" + date;
+const ipKey = "ip:" + date + ":" + clientIp(request);
+const globalCount = parseCount(await env.LIMITS.get(globalKey));
+if (globalCount >= GLOBAL_DAILY_LIMIT) {
+return jsonResponse(
+{ error: "daily_limit", message: "今天的分析名额已经用完了，明天再来试试吧。" },
+429
+);
+}
+const ipCount = parseCount(await env.LIMITS.get(ipKey));
+if (ipCount >= IP_DAILY_LIMIT) {
+return jsonResponse(
+{ error: "ip_limit", message: "你今天已经测了 5 次了，明天再来吧。" },
+429
+);
+}
+await env.LIMITS.put(globalKey, String(globalCount + 1), { expirationTtl: LIMIT_TTL_SECONDS });
+await env.LIMITS.put(ipKey, String(ipCount + 1), { expirationTtl: LIMIT_TTL_SECONDS });
+return null;
+}
+
 async function handleAnalyze(request, env) {
 if (!env.DASHSCOPE_API_KEY) {
 return jsonResponse(
@@ -191,6 +257,10 @@ return jsonResponse(
 413
 );
 }
+
+// 请求与照片校验都过了、真正调用上游之前，先过两道限流保险（触发限流直接返回 429）
+const limitResponse = await checkRateLimits(request, env);
+if (limitResponse) return limitResponse;
 
 let scene = payload && payload.scene;
 if (!SCENES.includes(scene)) scene = "初次见面";
