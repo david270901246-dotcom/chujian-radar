@@ -311,9 +311,19 @@ function drawScaled(source, maxSide, quality){
   ctx.drawImage(source, 0, 0, w, h);
   return canvas.toDataURL("image/jpeg", quality);
 }
+function readAsDataURL(file){
+  return new Promise(function(resolve, reject){
+    const r = new FileReader();
+    r.onload = function(){ resolve(r.result); };
+    r.onerror = function(){ reject(new Error("FileReader failed")); };
+    r.readAsDataURL(file);
+  });
+}
 async function processFile(file){
   if (!file) return;
-  if (!/^image\//.test(file.type) && !/\.(jpe?g|png|webp|heic|heif)$/i.test(file.name || "")) {
+  // 只在类型明确不是图片时才拒绝。有些浏览器（如 Yandex）从相册选图时 file.type 为空、
+  // 文件名也没有扩展名，旧版在这里就把正常照片误杀了——现在放行，靠后面的解码本身把关。
+  if (file.type && !/^image\//.test(file.type) && !/\.(jpe?g|png|webp|heic|heif)$/i.test(file.name || "")) {
     showNotice("error", "请选择一张图片文件（JPG / PNG 都可以）。");
     return;
   }
@@ -334,7 +344,22 @@ async function processFile(file){
     $("preview").style.display = "block";
     $("uploader").style.display = "none";
   } catch (e) {
-    showNotice("error", "这张照片读取失败，换一张试试？（太大的图或特殊格式可能读不了）");
+    // 兜底：canvas 解码这条路失败时，直接用 FileReader 读原图显示和发送
+    // （dataURL 不超过约 6MB 才行，再大的后端也会拒收）
+    try {
+      const raw = await readAsDataURL(file);
+      if (typeof raw !== "string" || raw.indexOf("data:image/") !== 0 || raw.length > 6000000) throw new Error("raw fallback unusable");
+      photo = {
+        dataUrl: raw,
+        thumbUrl: raw,
+        sendBase64: raw.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "")
+      };
+      $("previewImg").src = raw;
+      $("preview").style.display = "block";
+      $("uploader").style.display = "none";
+    } catch (e2) {
+      showNotice("error", "这张照片读取失败，换一张试试？（太大的图或特殊格式可能读不了）");
+    }
   }
 }
 

@@ -312,9 +312,20 @@ function drawScaled(source, maxSide, quality){
   ctx.drawImage(source, 0, 0, w, h);
   return canvas.toDataURL("image/jpeg", quality);
 }
+function readAsDataURL(file){
+  return new Promise(function(resolve, reject){
+    const r = new FileReader();
+    r.onload = function(){ resolve(r.result); };
+    r.onerror = function(){ reject(new Error("FileReader failed")); };
+    r.readAsDataURL(file);
+  });
+}
 async function processFile(file){
   if (!file) return;
-  if (!/^image\//.test(file.type) && !/\.(jpe?g|png|webp|heic|heif)$/i.test(file.name || "")) {
+  // Only reject when the type is clearly not an image. Some browsers (e.g. Yandex)
+  // return an empty file.type and an extensionless name for album picks — the old
+  // gate killed valid photos right here. Now those pass through and decoding decides.
+  if (file.type && !/^image\//.test(file.type) && !/\.(jpe?g|png|webp|heic|heif)$/i.test(file.name || "")) {
     showNotice("error", "Please choose an image file (JPG or PNG both work).");
     return;
   }
@@ -335,7 +346,22 @@ async function processFile(file){
     $("preview").style.display = "block";
     $("uploader").style.display = "none";
   } catch (e) {
-    showNotice("error", "That photo could not be read — try another one? (Very large files or unusual formats may fail)");
+    // Fallback: if the canvas decode path fails, read the original file directly
+    // with FileReader and use it for both preview and sending (data URL up to ~6MB).
+    try {
+      const raw = await readAsDataURL(file);
+      if (typeof raw !== "string" || raw.indexOf("data:image/") !== 0 || raw.length > 6000000) throw new Error("raw fallback unusable");
+      photo = {
+        dataUrl: raw,
+        thumbUrl: raw,
+        sendBase64: raw.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "")
+      };
+      $("previewImg").src = raw;
+      $("preview").style.display = "block";
+      $("uploader").style.display = "none";
+    } catch (e2) {
+      showNotice("error", "That photo could not be read — try another one? (Very large files or unusual formats may fail)");
+    }
   }
 }
 
