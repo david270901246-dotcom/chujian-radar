@@ -221,7 +221,7 @@
   <footer>
     本工具是娱乐测评，AI 的判断基于一张照片的可见信息，结果仅供参考，别太当真，更别拿它定义自己或别人。<br>
     隐私：你的照片只发送给分析接口用于本次测评，本页面不保存照片原图；测评记录和压缩后的小缩略图只存在你这台设备的浏览器里（localStorage），清除浏览器数据即会消失。<br>
-    <span style="opacity:.6">v2026.11.02-4</span>
+    <span style="opacity:.6">v2026.11.02-5</span>
   </footer>
 </div>
 
@@ -372,7 +372,7 @@ async function processFile(file){
     photo = null;
     $("preview").style.display = "none";
     $("uploader").style.display = "block";
-    showNotice("error", "这张照片读取失败，换一张试试？（太大的图或特殊格式可能读不了）[" + stage + " | " + diag + "]");
+    showNotice("error", "这张照片读取失败，换一张试试？（太大的图或特殊格式可能读不了）");
   }
 }
 

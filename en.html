@@ -221,7 +221,7 @@
   <footer>
     This is an entertainment test. The AI judges only what is visible in a single photo — take the results with a grain of salt, and never let them define you or anyone else.<br>
     Privacy: your photo is sent to the analysis service for this test only, and this page does not store the original. Your test history and small compressed thumbnails live only in this device's browser (localStorage) and disappear when you clear your browser data.<br>
-    <span style="opacity:.6">v2026.11.02-4</span>
+    <span style="opacity:.6">v2026.11.02-5</span>
   </footer>
 </div>
 
@@ -373,7 +373,7 @@ async function processFile(file){
     photo = null;
     $("preview").style.display = "none";
     $("uploader").style.display = "block";
-    showNotice("error", "That photo could not be read — try another one? (Very large files or unusual formats may fail) [" + stage + " | " + diag + "]");
+    showNotice("error", "That photo could not be read — try another one? (Very large files or unusual formats may fail)");
   }
 }
 
