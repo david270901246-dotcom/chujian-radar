@@ -140,6 +140,8 @@
 <body>
 <div class="wrap">
 
+  <div style="text-align:right;font-size:13px"><a href="en.html" style="color:#7a6f5f;text-decoration:none">English</a></div>
+
   <header class="top">
     <span class="badge">AI 第一印象测评</span>
     <h1>初见<span class="accent">雷达</span></h1>
@@ -197,6 +199,7 @@
   <section class="card">
     <h2><span class="step">4</span>开始分析</h2>
     <button class="btn primary big" id="analyzeBtn" type="button">开始分析</button>
+    <div id="slotsLine" style="display:none;margin-top:10px;font-size:13.5px;color:#7a6f5f;text-align:center"></div>
     <div class="notice" id="notice" role="alert"></div>
     <div class="loading" id="loading">
       <div class="spinner"></div>
@@ -231,6 +234,7 @@
    ============================================================ */
 const WORKER_URL = "https://eo.aigcai.ccwu.cc/analyze";
 const CHECK_CODE_URL = WORKER_URL.replace(/\/analyze\/?$/, "/check-code");
+const STATUS_URL = WORKER_URL.replace(/\/analyze\/?$/, "/status");
 
 const DIMENSIONS = ["亲和力", "可信度", "专业度", "好感度", "接近感", "气场", "记忆点"];
 const HISTORY_KEY = "chujian-radar-history-v1";
@@ -630,6 +634,20 @@ $("codeInput").addEventListener("input", function(){
   try { localStorage.setItem(CODE_KEY, currentCode()); } catch (e) {}
 });
 
+/* ---------- 今日余量（查不到就不显示，不打扰用户） ---------- */
+async function loadSlots(){
+  if (!workerConfigured()) return;
+  try {
+    const resp = await fetch(STATUS_URL);
+    if (!resp.ok) return;
+    const data = await resp.json();
+    if (!data || typeof data.remaining !== "number") return;
+    const el = $("slotsLine");
+    el.textContent = data.remaining > 0 ? "今日剩余名额：" + data.remaining + " 份" : "今日名额已满，明天再来";
+    el.style.display = "block";
+  } catch (e) { /* 静默失败：余量行保持隐藏 */ }
+}
+
 /* ---------- 开始分析 ---------- */
 const LOADING_HINTS = ["正在读你的表情和眼神", "正在看你的着装和仪态", "正在打量背景和光线", "正在生成你的第一印象报告"];
 let hintTimer = null;
@@ -720,6 +738,7 @@ try {
   if (savedCode) $("codeInput").value = savedCode;
 } catch (e) {}
 renderHistory();
+loadSlots();
 if (!workerConfigured()) {
   showNotice("info", "提醒：这个页面还没连上分析服务（WORKER_URL 未配置），部署 Cloudflare Worker 并填好地址后就能正式测评。");
 }

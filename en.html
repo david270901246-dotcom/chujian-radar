@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>First Impression Radar · See the first impression you give</title>
+<meta name="description" content="Upload one front-facing photo and let AI read the first impression you give strangers across 7 dimensions — with a Gap Index, a radar chart, and gentle fine-tuning tips. For entertainment only.">
+<style>
+  :root{
+    --bg:#faf6ef;
+    --card:#fffdf8;
+    --ink:#262019;
+    --muted:#7a6f5f;
+    --line:#eadfce;
+    --accent:#d9481c;
+    --accent-soft:#fdeee7;
+    --teal:#0f766e;
+    --teal-soft:#e6f4f1;
+    --danger:#b3261e;
+    --danger-soft:#fdecea;
+    --radius:16px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",sans-serif;
+    font-size:16px;line-height:1.6;
+  }
+  .wrap{max-width:560px;margin:0 auto;padding:20px 16px 40px}
+  header.top{text-align:center;padding:18px 0 6px}
+  .badge{display:inline-block;background:var(--teal-soft);color:var(--teal);font-size:12px;font-weight:600;
+    padding:3px 10px;border-radius:999px;letter-spacing:.08em}
+  h1{font-family:"Songti SC","STSong","SimSun",serif;font-size:32px;line-height:1.25;margin:12px 0 6px;font-weight:700}
+  h1 .accent{color:var(--accent)}
+  .sub{color:var(--muted);font-size:14px;margin:0}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:18px 16px;margin-top:16px;box-shadow:0 1px 3px rgba(80,60,20,.05)}
+  .card h2{font-size:17px;margin:0 0 10px}
+  .card h2 .step{display:inline-block;background:var(--accent);color:#fff;width:22px;height:22px;line-height:22px;
+    text-align:center;border-radius:50%;font-size:13px;margin-right:8px;vertical-align:2px}
+
+  /* Upload area */
+  .uploader{border:2px dashed var(--line);border-radius:12px;padding:22px 12px;text-align:center;cursor:pointer;
+    background:#fff;transition:border-color .15s}
+  .uploader:active{border-color:var(--accent)}
+  .uploader .big{font-size:17px;font-weight:600;margin:6px 0 2px}
+  .uploader .small{color:var(--muted);font-size:13px}
+  .uploader .cam{font-size:34px;line-height:1}
+  .preview{display:none;text-align:center}
+  .preview img{max-width:100%;max-height:340px;border-radius:12px}
+  .preview .row{margin-top:10px;display:flex;gap:10px;justify-content:center}
+  .btn{appearance:none;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:999px;
+    padding:9px 18px;font-size:15px;cursor:pointer;font-family:inherit}
+  .btn:active{transform:scale(.98)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+  .btn.big{width:100%;padding:14px;font-size:17px;border-radius:12px}
+  .btn[disabled]{opacity:.55;cursor:not-allowed}
+  .btn.danger{color:var(--danger);border-color:#f0c6c2}
+  .btn.danger.confirm{background:var(--danger);color:#fff;border-color:var(--danger)}
+
+  /* Scene picker */
+  .scenes{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .scene{border:1.5px solid var(--line);background:#fff;border-radius:12px;padding:12px 10px;text-align:left;
+    cursor:pointer;font-family:inherit;color:var(--ink)}
+  .scene .t{font-size:16px;font-weight:600;display:block}
+  .scene .d{font-size:12.5px;color:var(--muted);display:block;margin-top:2px;line-height:1.45}
+  .scene[aria-pressed="true"]{border-color:var(--teal);background:var(--teal-soft)}
+
+  /* Access code */
+  .code-row{display:flex;gap:10px}
+  .code-input{flex:1;min-width:0;border:1.5px solid var(--line);border-radius:12px;padding:11px 12px;
+    font-size:16px;font-family:inherit;text-transform:uppercase;letter-spacing:.04em;background:#fff;color:var(--ink)}
+  .code-input:focus{outline:none;border-color:var(--teal)}
+  .code-status{font-size:13.5px;margin-top:9px;min-height:1.4em;color:var(--muted);line-height:1.5}
+  .code-status.ok{color:var(--teal)}
+  .code-status.err{color:var(--danger)}
+
+  /* Notice box */
+  .notice{display:none;border-radius:12px;padding:12px 14px;font-size:14.5px;margin-top:16px;line-height:1.55}
+  .notice.error{display:block;background:var(--danger-soft);color:var(--danger);border:1px solid #f0c6c2}
+  .notice.info{display:block;background:var(--teal-soft);color:#0b4f4a;border:1px solid #bfe0d9}
+
+  /* Loading */
+  .loading{display:none;text-align:center;padding:26px 10px}
+  .loading.show{display:block}
+  .spinner{width:40px;height:40px;margin:0 auto 12px;border-radius:50%;
+    border:4px solid var(--line);border-top-color:var(--accent);animation:spin 0.9s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .loading .hint{color:var(--muted);font-size:13.5px}
+
+  /* Report */
+  .report{display:none}
+  .report.show{display:block}
+  .report .photo-line{display:flex;gap:12px;align-items:center}
+  .report .photo-line img{width:64px;height:64px;object-fit:cover;border-radius:12px}
+  .report .scene-tag{font-size:12.5px;color:var(--teal);background:var(--teal-soft);
+    padding:2px 9px;border-radius:999px;font-weight:600}
+  .report .date{font-size:12.5px;color:var(--muted)}
+  .headline{font-family:"Songti SC","STSong","SimSun",serif;font-size:23px;line-height:1.45;font-weight:700;margin:14px 0 4px}
+  .gapbox{display:flex;align-items:center;gap:14px;background:var(--accent-soft);border-radius:12px;padding:12px 14px;margin-top:12px}
+  .gapbox .num{font-size:36px;font-weight:800;color:var(--accent);line-height:1}
+  .gapbox .lbl{font-size:13px;font-weight:700}
+  .gapbox .desc{font-size:13px;color:var(--muted);line-height:1.5}
+  .radar-box{text-align:center;margin-top:8px}
+  .radar-box svg{max-width:330px;width:100%;height:auto}
+  .dim{border-top:1px solid var(--line);padding:12px 0}
+  .dim:first-of-type{border-top:none}
+  .dim .head{display:flex;justify-content:space-between;align-items:baseline}
+  .dim .name{font-weight:700;font-size:16px}
+  .dim .score{font-weight:800;color:var(--teal);font-size:17px}
+  .bar{height:8px;background:#f0e7d3;border-radius:999px;margin:7px 0 8px;overflow:hidden}
+  .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--teal),#35a08f);border-radius:999px}
+  .dim .read{font-size:14.5px;margin:0}
+  .dim .tip{font-size:13.5px;color:var(--muted);margin:3px 0 0}
+  .dim .tip b{color:var(--accent);font-weight:600}
+  .summary{background:var(--teal-soft);border-radius:12px;padding:12px 14px;font-size:14.5px;margin-top:6px;line-height:1.65}
+  .summary p{margin:0 0 6px}
+  .summary p:last-child{margin:0}
+  .shareline{border:1.5px dashed var(--line);border-radius:12px;padding:12px 14px;font-size:15px;background:#fff;margin-top:14px}
+  .report .actions{display:flex;gap:10px;margin-top:16px}
+  .report .actions .btn{flex:1}
+
+  /* History */
+  .history-item{display:flex;gap:12px;align-items:center;padding:11px 0;border-top:1px solid var(--line)}
+  .history-item:first-of-type{border-top:none}
+  .history-item img{width:52px;height:52px;object-fit:cover;border-radius:10px;flex:none}
+  .history-item .info{flex:1;min-width:0}
+  .history-item .hl{font-weight:600;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .history-item .meta{font-size:12.5px;color:var(--muted)}
+  .history-item .view{flex:none}
+  .history-item .del{flex:none;padding:7px 12px;font-size:13.5px}
+  .empty{color:var(--muted);font-size:14px;text-align:center;padding:10px 0}
+
+  footer{margin-top:28px;color:var(--muted);font-size:12.5px;line-height:1.7;text-align:center;padding:0 6px}
+  .hidden-input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div style="text-align:right;font-size:13px"><a href="index.html" style="color:#7a6f5f;text-decoration:none">中文</a></div>
+
+  <header class="top">
+    <span class="badge">AI FIRST IMPRESSION TEST</span>
+    <h1>First Impression <span class="accent">Radar</span></h1>
+    <p class="sub">See the first impression you give<br>Upload one front-facing photo and meet yourself through a stranger's eyes</p>
+  </header>
+
+  <!-- Step 1: Upload -->
+  <section class="card" id="uploadCard">
+    <h2><span class="step">1</span>Upload a front-facing photo</h2>
+    <div class="uploader" id="uploader" role="button" tabindex="0" aria-label="Choose a photo">
+      <div class="cam">📷</div>
+      <div class="big">Tap here to choose a photo</div>
+      <div class="small">From your album or your camera · Front-facing, with good light, works best<br>Your photo is compressed on your phone first, then sent to the analysis service</div>
+    </div>
+    <div class="preview" id="preview">
+      <img id="previewImg" alt="Preview of your uploaded photo">
+      <div class="row">
+        <button class="btn" id="changePhotoBtn" type="button">Change photo</button>
+        <button class="btn danger" id="removePhotoBtn" type="button">Remove</button>
+      </div>
+    </div>
+    <input class="hidden-input" type="file" id="fileInput" accept="image/*">
+  </section>
+
+  <!-- Step 2: Scene -->
+  <section class="card">
+    <h2><span class="step">2</span>Which scene do you want to test?</h2>
+    <div class="scenes" id="scenes">
+      <button class="scene" type="button" data-scene="First Meeting" aria-pressed="true">
+        <span class="t">First Meeting</span><span class="d">A date, a first hangout, meeting someone new</span>
+      </button>
+      <button class="scene" type="button" data-scene="Job Interview" aria-pressed="false">
+        <span class="t">Job Interview</span><span class="d">The professionalism read an interviewer makes in 3 seconds</span>
+      </button>
+      <button class="scene" type="button" data-scene="Social Gathering" aria-pressed="false">
+        <span class="t">Social Gathering</span><span class="d">Dinners and parties — do people want to keep chatting with you?</span>
+      </button>
+      <button class="scene" type="button" data-scene="Profile Photo" aria-pressed="false">
+        <span class="t">Profile Photo</span><span class="d">How your avatar comes across in chats and social apps</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- Step 3: Access code -->
+  <section class="card">
+    <h2><span class="step">3</span>Enter your access code</h2>
+    <div class="code-row">
+      <input class="code-input" id="codeInput" type="text" placeholder="CJ-XXXXXX-XXXXXX" autocomplete="off" autocapitalize="characters" spellcheck="false">
+      <button class="btn" id="checkCodeBtn" type="button">Check uses left</button>
+    </div>
+    <div class="code-status" id="codeStatus">You will receive a code after purchase. One code covers 3 analyses — enter it once and this page remembers it.</div>
+  </section>
+
+  <!-- Step 4: Start -->
+  <section class="card">
+    <h2><span class="step">4</span>Start the analysis</h2>
+    <button class="btn primary big" id="analyzeBtn" type="button">Analyze my photo</button>
+    <div id="slotsLine" style="display:none;margin-top:10px;font-size:13.5px;color:#7a6f5f;text-align:center"></div>
+    <div class="notice" id="notice" role="alert"></div>
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <div>AI is looking at your photo…</div>
+      <div class="hint" id="loadingHint">Reading your expression and your eyes</div>
+    </div>
+  </section>
+
+  <!-- Report -->
+  <section class="card report" id="reportCard" aria-live="polite"></section>
+
+  <!-- History -->
+  <section class="card" id="historyCard">
+    <h2>My test history</h2>
+    <div id="historyList"></div>
+    <p class="empty" id="historyEmpty">No tests yet — try one above.</p>
+  </section>
+
+  <footer>
+    This is an entertainment test. The AI judges only what is visible in a single photo — take the results with a grain of salt, and never let them define you or anyone else.<br>
+    Privacy: your photo is sent to the analysis service for this test only, and this page does not store the original. Your test history and small compressed thumbnails live only in this device's browser (localStorage) and disappear when you clear your browser data.
+  </footer>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   ★ MUST CHANGE THIS WHEN DEPLOYING ★
+   Point this at your own Cloudflare Worker URL, e.g.:
+   const WORKER_URL = "https://chujian-radar.zhangsan.workers.dev/analyze";
+   Until it is replaced, the page clearly says the analysis service
+   is not configured yet instead of pretending to produce reports.
+   ============================================================ */
+const WORKER_URL = "https://eo.aigcai.ccwu.cc/analyze";
+const CHECK_CODE_URL = WORKER_URL.replace(/\/analyze\/?$/, "/check-code");
+const STATUS_URL = WORKER_URL.replace(/\/analyze\/?$/, "/status");
+
+const DIMENSIONS = ["Friendliness", "Trustworthiness", "Professionalism", "Likability", "Approachability", "Presence", "Memorability"];
+const HISTORY_KEY = "chujian-radar-history-v1";
+const CODE_KEY = "chujian_code";
+const HISTORY_MAX = 20;
+
+/* ---------- State ---------- */
+let photo = null;            // { sendBase64: string, dataUrl: string, thumbUrl: string }
+let selectedScene = "First Meeting";
+let currentReport = null;    // { id, ts, scene, thumb, report }
+
+/* ---------- Helpers ---------- */
+function $(id){ return document.getElementById(id); }
+function workerConfigured(){
+  return typeof WORKER_URL === "string"
+    && WORKER_URL.startsWith("https://")
+    && WORKER_URL.indexOf("待填") === -1
+    && WORKER_URL.indexOf("<") === -1
+    && WORKER_URL.indexOf(">") === -1;
+}
+function showNotice(type, text){
+  const n = $("notice");
+  n.className = "notice " + type;
+  n.textContent = text;
+}
+function hideNotice(){
+  const n = $("notice");
+  n.className = "notice";
+  n.textContent = "";
+}
+function clampScore(v){
+  const n = Math.round(Number(v));
+  if (isNaN(n)) return 0;
+  return Math.max(0, Math.min(100, n));
+}
+function fmtDate(ts){
+  const d = new Date(ts);
+  const p = function(x){ return (x < 10 ? "0" : "") + x; };
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate())
+    + " " + p(d.getHours()) + ":" + p(d.getMinutes());
+}
+function gapDesc(gap){
+  if (gap >= 70) return "Big gap: the you strangers see at first glance is very different from the you you think you are — and that contrast is often exactly what makes you memorable.";
+  if (gap >= 45) return "Noticeable gap: your first impression holds more than a few surprises — play it right and it becomes the thing people remember.";
+  if (gap >= 25) return "Moderate gap: people mostly see the real you, with a small surprise or two mixed in.";
+  return "Tiny gap: the impression you give matches who you actually are — what you see is what you get.";
+}
+
+/* ---------- Photo handling: canvas compression ---------- */
+async function loadImageBitmap(file){
+  if (window.createImageBitmap) {
+    try { return await createImageBitmap(file, { imageOrientation: "from-image" }); }
+    catch (e) { /* Older browsers reject the options argument; fall back to the plain call */ }
+    try { return await createImageBitmap(file); } catch (e) { /* Fall back to Image below */ }
+  }
+  return new Promise(function(resolve, reject){
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = function(){ resolve(img); };
+    img.onerror = function(){ URL.revokeObjectURL(url); reject(new Error("Failed to read image")); };
+    img.src = url;
+  });
+}
+function drawScaled(source, maxSide, quality){
+  const w0 = source.width, h0 = source.height;
+  const scale = Math.min(1, maxSide / Math.max(w0, h0));
+  const w = Math.max(1, Math.round(w0 * scale));
+  const h = Math.max(1, Math.round(h0 * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(source, 0, 0, w, h);
+  return canvas.toDataURL("image/jpeg", quality);
+}
+async function processFile(file){
+  if (!file) return;
+  if (!/^image\//.test(file.type) && !/\.(jpe?g|png|webp|heic|heif)$/i.test(file.name || "")) {
+    showNotice("error", "Please choose an image file (JPG or PNG both work).");
+    return;
+  }
+  hideNotice();
+  try {
+    const bmp = await loadImageBitmap(file);
+    // For sending: longest side ≤1024px, JPEG quality 0.82
+    const dataUrl = drawScaled(bmp, 1024, 0.82);
+    // History thumbnail: longest side 240px, quality 0.7, stored only in this browser
+    const thumbUrl = drawScaled(bmp, 240, 0.7);
+    if (bmp.close) bmp.close();
+    photo = {
+      dataUrl: dataUrl,
+      thumbUrl: thumbUrl,
+      sendBase64: dataUrl.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "")
+    };
+    $("previewImg").src = dataUrl;
+    $("preview").style.display = "block";
+    $("uploader").style.display = "none";
+  } catch (e) {
+    showNotice("error", "That photo could not be read — try another one? (Very large files or unusual formats may fail)");
+  }
+}
+
+/* ---------- Scene selection ---------- */
+$("scenes").addEventListener("click", function(ev){
+  const btn = ev.target.closest(".scene");
+  if (!btn) return;
+  selectedScene = btn.getAttribute("data-scene");
+  const all = $("scenes").querySelectorAll(".scene");
+  all.forEach(function(b){ b.setAttribute("aria-pressed", b === btn ? "true" : "false"); });
+});
+
+/* ---------- Upload interactions ---------- */
+const fileInput = $("fileInput");
+$("uploader").addEventListener("click", function(){ fileInput.click(); });
+$("uploader").addEventListener("keydown", function(ev){
+  if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); fileInput.click(); }
+});
+$("changePhotoBtn").addEventListener("click", function(){ fileInput.click(); });
+$("removePhotoBtn").addEventListener("click", function(){
+  photo = null;
+  fileInput.value = "";
+  $("preview").style.display = "none";
+  $("uploader").style.display = "block";
+});
+fileInput.addEventListener("change", function(){
+  if (fileInput.files && fileInput.files[0]) processFile(fileInput.files[0]);
+  fileInput.value = ""; // Allow picking the same file again
+});
+
+/* ---------- Report data cleanup (accepts dimensions as array or object) ---------- */
+function normalizeReport(raw, scene){
+  let dims = [];
+  if (Array.isArray(raw.dimensions)) {
+    dims = raw.dimensions.map(function(d){
+      return { name: d.name, score: clampScore(d.score), read: String(d.read || ""), tip: String(d.tip || "") };
+    });
+  } else if (raw.dimensions && typeof raw.dimensions === "object") {
+    dims = DIMENSIONS.map(function(name){
+      const d = raw.dimensions[name] || {};
+      return { name: name, score: clampScore(d.score), read: String(d.read || ""), tip: String(d.tip || "") };
+    });
+  }
+  // Reorder to the fixed sequence, keeping only named dimensions out of the 7
+  const byName = {};
+  dims.forEach(function(d){ if (d.name) byName[d.name] = d; });
+  dims = DIMENSIONS.filter(function(n){ return byName[n]; }).map(function(n){ return byName[n]; });
+  return {
+    headline: String(raw.headline || "Here is the first impression the AI got from your photo"),
+    gapIndex: clampScore(raw.gapIndex != null ? raw.gapIndex : raw.gap_index),
+    gapNote: String(raw.gapNote || raw.gap_note || ""),
+    dimensions: dims,
+    overall: String(raw.overall || ""),
+    shareLine: String(raw.shareLine || raw.share_line || ""),
+    scene: String(raw.scene || scene || "")
+  };
+}
+
+/* ---------- Radar chart (hand-drawn inline SVG) ---------- */
+function radarSVG(dims){
+  const cx = 170, cy = 168, R = 108, labelR = 140;
+  function pt(i, ratio){
+    const ang = -Math.PI / 2 + i * (2 * Math.PI / dims.length);
+    return [cx + R * ratio * Math.cos(ang), cy + R * ratio * Math.sin(ang)];
+  }
+  function anchor(i){
+    const ang = -Math.PI / 2 + i * (2 * Math.PI / dims.length);
+    const c = Math.cos(ang);
+    if (c > 0.35) return "start";
+    if (c < -0.35) return "end";
+    return "middle";
+  }
+  let s = '<svg viewBox="0 0 340 336" role="img" aria-label="Seven-dimension first impression radar chart" xmlns="http://www.w3.org/2000/svg">';
+  // Grid rings
+  [1, 0.75, 0.5, 0.25].forEach(function(r){
+    const pts = dims.map(function(_, i){ return pt(i, r).join(","); }).join(" ");
+    s += '<polygon points="' + pts + '" fill="none" stroke="#eadfce" stroke-width="1"/>';
+  });
+  // Axes
+  dims.forEach(function(_, i){
+    const p = pt(i, 1);
+    s += '<line x1="' + cx + '" y1="' + cy + '" x2="' + p[0] + '" y2="' + p[1] + '" stroke="#eadfce" stroke-width="1"/>';
+  });
+  // Data polygon
+  const dataPts = dims.map(function(d, i){ return pt(i, d.score / 100).join(","); }).join(" ");
+  s += '<polygon points="' + dataPts + '" fill="rgba(15,118,110,0.20)" stroke="#0f766e" stroke-width="2.5" stroke-linejoin="round"/>';
+  // Data points + labels
+  dims.forEach(function(d, i){
+    const p = pt(i, d.score / 100);
+    s += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="3.5" fill="#d9481c"/>';
+    const ang = -Math.PI / 2 + i * (2 * Math.PI / dims.length);
+    const lx = cx + labelR * Math.cos(ang);
+    const ly = cy + labelR * Math.sin(ang);
+    const a = anchor(i);
+    s += '<text x="' + lx + '" y="' + (ly - 2) + '" text-anchor="' + a + '" font-size="13.5" font-weight="700" fill="#262019">' + escapeHtml(d.name) + '</text>';
+    s += '<text x="' + lx + '" y="' + (ly + 15) + '" text-anchor="' + a + '" font-size="12.5" font-weight="700" fill="#0f766e">' + d.score + '</text>';
+  });
+  s += "</svg>";
+  return s;
+}
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, function(c){
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+  });
+}
+
+/* ---------- Render report ---------- */
+function renderReport(entry){
+  currentReport = entry;
+  const r = entry.report;
+  const card = $("reportCard");
+  let strongest = r.dimensions[0], weakest = r.dimensions[0];
+  r.dimensions.forEach(function(d){
+    if (d.score > strongest.score) strongest = d;
+    if (d.score < weakest.score) weakest = d;
+  });
+  let html = "";
+  html += '<div class="photo-line">'
+    + (entry.thumb ? '<img src="' + entry.thumb + '" alt="Tested photo thumbnail">' : "")
+    + '<div><span class="scene-tag">' + escapeHtml(r.scene || entry.scene || "") + "</span>"
+    + '<div class="date">' + fmtDate(entry.ts) + " · tested</div></div></div>";
+  html += '<div class="headline">' + escapeHtml(r.headline) + "</div>";
+  html += '<div class="gapbox"><div class="num">' + r.gapIndex + '</div><div>'
+    + '<div class="lbl">GAP INDEX (OUT OF 100)</div>'
+    + '<div class="desc">' + escapeHtml(r.gapNote || gapDesc(r.gapIndex)) + "</div></div></div>";
+  if (typeof entry.usesLeft === "number") {
+    html += '<div class="summary" style="margin-top:12px"><p>This code has <b>' + entry.usesLeft + "</b> uses left — grab another code when it runs out to keep testing.</p></div>";
+  }
+  html += '<div class="radar-box">' + radarSVG(r.dimensions) + "</div>";
+  r.dimensions.forEach(function(d){
+    html += '<div class="dim"><div class="head"><span class="name">' + escapeHtml(d.name)
+      + '</span><span class="score">' + d.score + "</span></div>"
+      + '<div class="bar"><i style="width:' + d.score + '%"></i></div>'
+      + '<p class="read">' + escapeHtml(d.read) + "</p>"
+      + (d.tip ? '<p class="tip"><b>Fine-tune: </b>' + escapeHtml(d.tip) + "</p>" : "")
+      + "</div>";
+  });
+  if (strongest && weakest && strongest.name !== weakest.name) {
+    html += '<div class="summary"><p><b>Strongest: ' + escapeHtml(strongest.name) + " (" + strongest.score
+      + " pts)</b> — this is what people remember about you at first glance.</p>"
+      + "<p><b>Most room to grow: " + escapeHtml(weakest.name) + " (" + weakest.score
+      + " pts)</b> — no big overhaul needed; just try the one small tweak above.</p>"
+      + (r.overall ? "<p>" + escapeHtml(r.overall) + "</p>" : "")
+      + "</div>";
+  } else if (r.overall) {
+    html += '<div class="summary"><p>' + escapeHtml(r.overall) + "</p></div>";
+  }
+  if (r.shareLine) {
+    html += '<div class="shareline">' + escapeHtml(r.shareLine) + "</div>";
+  }
+  html += '<div class="actions">'
+    + '<button class="btn primary" id="copyShareBtn" type="button">Copy share text</button>'
+    + '<button class="btn" id="againBtn" type="button">Test another photo</button></div>';
+  card.innerHTML = html;
+  card.classList.add("show");
+
+  $("copyShareBtn").addEventListener("click", async function(){
+    const btn = this;
+    const text = r.shareLine || r.headline;
+    let ok = false;
+    try { await navigator.clipboard.writeText(text); ok = true; }
+    catch (e) {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try { ok = document.execCommand("copy"); } catch (e2) { ok = false; }
+      document.body.removeChild(ta);
+    }
+    btn.textContent = ok ? "Copied — go share it with friends" : "Copy failed — long-press the text to copy it manually";
+    setTimeout(function(){ btn.textContent = "Copy share text"; }, 2200);
+  });
+  $("againBtn").addEventListener("click", function(){
+    card.classList.remove("show");
+    card.innerHTML = "";
+    currentReport = null;
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+  card.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+/* ---------- History (localStorage, this device only) ---------- */
+function loadHistory(){
+  try {
+    const arr = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
+    return Array.isArray(arr) ? arr : [];
+  } catch (e) { return []; }
+}
+function saveHistory(list){
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(list)); return true; }
+  catch (e) { return false; }
+}
+function addToHistory(entry){
+  const list = loadHistory();
+  list.unshift(entry);
+  while (list.length > HISTORY_MAX) list.pop();
+  if (!saveHistory(list)) {
+    // Out of space: drop the oldest entry's thumbnail and retry
+    if (list.length > 1) { list[list.length - 1].thumb = ""; }
+    if (!saveHistory(list) && list[0]) { list[0].thumb = ""; saveHistory(list); }
+  }
+  renderHistory();
+}
+function renderHistory(){
+  const list = loadHistory();
+  const box = $("historyList");
+  $("historyEmpty").style.display = list.length ? "none" : "block";
+  box.innerHTML = "";
+  list.forEach(function(entry){
+    const item = document.createElement("div");
+    item.className = "history-item";
+    item.innerHTML =
+      (entry.thumb ? '<img src="' + entry.thumb + '" alt="">' : "")
+      + '<div class="info"><div class="hl">' + escapeHtml(entry.report.headline || "First impression report") + "</div>"
+      + '<div class="meta">' + escapeHtml(entry.scene || "") + " · " + fmtDate(entry.ts)
+      + " · Gap Index " + (entry.report.gapIndex != null ? entry.report.gapIndex : "-") + "</div></div>";
+    const viewBtn = document.createElement("button");
+    viewBtn.className = "btn view";
+    viewBtn.type = "button";
+    viewBtn.textContent = "View";
+    viewBtn.addEventListener("click", function(){ renderReport(entry); });
+    const delBtn = document.createElement("button");
+    delBtn.className = "btn danger del";
+    delBtn.type = "button";
+    delBtn.textContent = "Delete";
+    let armed = false, timer = null;
+    delBtn.addEventListener("click", function(){
+      if (!armed) {
+        armed = true;
+        delBtn.textContent = "Tap again to confirm";
+        delBtn.classList.add("confirm");
+        timer = setTimeout(function(){
+          armed = false; delBtn.textContent = "Delete"; delBtn.classList.remove("confirm");
+        }, 3000);
+        return;
+      }
+      clearTimeout(timer);
+      const next = loadHistory().filter(function(x){ return x.id !== entry.id; });
+      saveHistory(next);
+      if (currentReport && currentReport.id === entry.id) {
+        $("reportCard").classList.remove("show");
+        $("reportCard").innerHTML = "";
+        currentReport = null;
+      }
+      renderHistory();
+    });
+    item.appendChild(viewBtn);
+    item.appendChild(delBtn);
+    box.appendChild(item);
+  });
+}
+
+/* ---------- Access code ---------- */
+function currentCode(){
+  return ($("codeInput").value || "").replace(/\s+/g, "").toUpperCase();
+}
+function setCodeStatus(type, text){
+  const s = $("codeStatus");
+  s.className = "code-status" + (type ? " " + type : "");
+  s.textContent = text;
+}
+async function checkCode(){
+  const code = currentCode();
+  try { localStorage.setItem(CODE_KEY, code); } catch (e) {}
+  if (!code) {
+    setCodeStatus("err", "Enter your code first — you will receive one after purchase, and entering it is all it takes to test.");
+    return;
+  }
+  if (!workerConfigured()) {
+    setCodeStatus("err", "The analysis service is not set up yet, so codes cannot be checked right now.");
+    return;
+  }
+  setCodeStatus("", "Checking how many uses this code has left…");
+  try {
+    const resp = await fetch(CHECK_CODE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: code, lang: "en" })
+    });
+    let data = null;
+    try { data = await resp.json(); } catch (e) { data = null; }
+    if (resp.ok && data && data.valid) {
+      setCodeStatus("ok", "Code valid — " + data.usesLeft + " uses left.");
+    } else {
+      setCodeStatus("err", (data && data.message) || "Code check failed — please try again in a moment.");
+    }
+  } catch (e) {
+    setCodeStatus("err", "Cannot reach the analysis service — check your connection and try again.");
+  }
+}
+$("checkCodeBtn").addEventListener("click", function(){ checkCode(); });
+$("codeInput").addEventListener("blur", function(){
+  if (currentCode()) checkCode();
+});
+$("codeInput").addEventListener("input", function(){
+  try { localStorage.setItem(CODE_KEY, currentCode()); } catch (e) {}
+});
+
+/* ---------- Today's remaining slots (silently hidden if the fetch fails) ---------- */
+async function loadSlots(){
+  if (!workerConfigured()) return;
+  try {
+    const resp = await fetch(STATUS_URL);
+    if (!resp.ok) return;
+    const data = await resp.json();
+    if (!data || typeof data.remaining !== "number") return;
+    const el = $("slotsLine");
+    el.textContent = "Report slots left today: " + data.remaining;
+    el.style.display = "block";
+  } catch (e) { /* Silent failure: the slots line stays hidden */ }
+}
+
+/* ---------- Start analysis ---------- */
+const LOADING_HINTS = ["Reading your expression and your eyes", "Checking your outfit and posture", "Taking in the background and the light", "Writing up your first-impression report"];
+let hintTimer = null;
+function setLoading(on){
+  $("loading").classList.toggle("show", on);
+  $("analyzeBtn").disabled = on;
+  if (on) {
+    let i = 0;
+    $("loadingHint").textContent = LOADING_HINTS[0];
+    hintTimer = setInterval(function(){
+      i = (i + 1) % LOADING_HINTS.length;
+      $("loadingHint").textContent = LOADING_HINTS[i];
+    }, 2600);
+  } else if (hintTimer) {
+    clearInterval(hintTimer); hintTimer = null;
+  }
+}
+
+$("analyzeBtn").addEventListener("click", async function(){
+  hideNotice();
+  if (!photo) {
+    showNotice("error", "Upload a front-facing photo first, then tap Analyze.");
+    $("uploadCard").scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
+  if (!workerConfigured()) {
+    showNotice("error", "The analysis service is not configured yet: WORKER_URL is still a placeholder. The site admin needs to deploy the Cloudflare Worker (see README) and put the real URL at the top of this page. No reports are generated until then.");
+    return;
+  }
+  setLoading(true);
+  try {
+    const resp = await fetch(WORKER_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image_base64: photo.sendBase64, scene: selectedScene, code: currentCode(), lang: "en" })
+    });
+    let data = null;
+    try { data = await resp.json(); } catch (e) { data = null; }
+    if (!resp.ok || !data || data.error) {
+      let msg;
+      const code = data && data.error;
+      if (code === "not_configured") {
+        msg = "The analysis service is not configured yet: the API key (DASHSCOPE_API_KEY) has not been set in the Worker. The site admin needs to finish the Worker deployment in the README first.";
+      } else if (code === "image_too_large") {
+        msg = "That photo is too large — the server refused it. Try a smaller photo.";
+      } else if (code && code.indexOf("code_") === 0) {
+        msg = (data && data.message) || "There is a problem with your code — check it and try again.";
+        setCodeStatus("err", msg);
+        $("codeInput").scrollIntoView({ behavior: "smooth", block: "center" });
+        $("codeInput").focus();
+      } else if (data && data.message) {
+        msg = data.message;
+      } else if (resp.status === 502) {
+        msg = "The AI analysis service is temporarily unavailable — please try again shortly.";
+      } else {
+        msg = "Analysis failed (server returned " + resp.status + ") — please try again later.";
+      }
+      showNotice("error", msg);
+      return;
+    }
+    const report = normalizeReport(data, selectedScene);
+    if (!report.dimensions.length) {
+      showNotice("error", "The AI returned an incomplete report — tap Analyze to try again.");
+      return;
+    }
+    const entry = {
+      id: "r" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+      ts: Date.now(),
+      scene: selectedScene,
+      thumb: photo.thumbUrl,
+      report: report
+    };
+    addToHistory(entry);
+    // Uses-left is attached only to this live entry, never written to history storage (it goes stale)
+    entry.usesLeft = (typeof data.usesLeft === "number" ? data.usesLeft : null);
+    showNotice("info", "Done! Your report is below, and it has been saved to your history (stored only in this device's browser).");
+    renderReport(entry);
+  } catch (e) {
+    showNotice("error", "Cannot reach the analysis service — check your connection and try again. If it keeps failing, the site admin may not have deployed the Worker yet.");
+  } finally {
+    setLoading(false);
+  }
+});
+
+/* ---------- Init ---------- */
+try {
+  const savedCode = localStorage.getItem(CODE_KEY);
+  if (savedCode) $("codeInput").value = savedCode;
+} catch (e) {}
+renderHistory();
+loadSlots();
+if (!workerConfigured()) {
+  showNotice("info", "Heads up: this page is not connected to the analysis service yet (WORKER_URL not configured). Deploy the Cloudflare Worker and fill in the URL to start testing.");
+}
+</script>
+</body>
+</html>
