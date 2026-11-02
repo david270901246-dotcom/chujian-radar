@@ -220,7 +220,8 @@
 
   <footer>
     本工具是娱乐测评，AI 的判断基于一张照片的可见信息，结果仅供参考，别太当真，更别拿它定义自己或别人。<br>
-    隐私：你的照片只发送给分析接口用于本次测评，本页面不保存照片原图；测评记录和压缩后的小缩略图只存在你这台设备的浏览器里（localStorage），清除浏览器数据即会消失。
+    隐私：你的照片只发送给分析接口用于本次测评，本页面不保存照片原图；测评记录和压缩后的小缩略图只存在你这台设备的浏览器里（localStorage），清除浏览器数据即会消失。<br>
+    <span style="opacity:.6">v2026.11.02-2</span>
   </footer>
 </div>
 
@@ -328,6 +329,13 @@ async function processFile(file){
     return;
   }
   hideNotice();
+  // 先用 object URL 立刻出预览：不经过任何解码，选完就能看到照片，
+  // 下面处理慢或失败也不会让人对着空白等。
+  try {
+    $("previewImg").src = URL.createObjectURL(file);
+    $("preview").style.display = "block";
+    $("uploader").style.display = "none";
+  } catch (e) { /* 退回让下面处理流程来设置预览 */ }
   try {
     const bmp = await loadImageBitmap(file);
     // 发送用：最长边 ≤1024px，JPEG 质量 0.82
@@ -348,7 +356,7 @@ async function processFile(file){
     // （dataURL 不超过约 6MB 才行，再大的后端也会拒收）
     try {
       const raw = await readAsDataURL(file);
-      if (typeof raw !== "string" || raw.indexOf("data:image/") !== 0 || raw.length > 6000000) throw new Error("raw fallback unusable");
+      if (typeof raw !== "string" || raw.indexOf("data:image/") !== 0 || raw.length > 2400000) throw new Error("raw fallback unusable");
       photo = {
         dataUrl: raw,
         thumbUrl: raw,
@@ -358,6 +366,8 @@ async function processFile(file){
       $("preview").style.display = "block";
       $("uploader").style.display = "none";
     } catch (e2) {
+      $("preview").style.display = "none";
+      $("uploader").style.display = "block";
       showNotice("error", "这张照片读取失败，换一张试试？（太大的图或特殊格式可能读不了）");
     }
   }

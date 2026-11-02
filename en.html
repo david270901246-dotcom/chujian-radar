@@ -220,7 +220,8 @@
 
   <footer>
     This is an entertainment test. The AI judges only what is visible in a single photo — take the results with a grain of salt, and never let them define you or anyone else.<br>
-    Privacy: your photo is sent to the analysis service for this test only, and this page does not store the original. Your test history and small compressed thumbnails live only in this device's browser (localStorage) and disappear when you clear your browser data.
+    Privacy: your photo is sent to the analysis service for this test only, and this page does not store the original. Your test history and small compressed thumbnails live only in this device's browser (localStorage) and disappear when you clear your browser data.<br>
+    <span style="opacity:.6">v2026.11.02-2</span>
   </footer>
 </div>
 
@@ -330,6 +331,13 @@ async function processFile(file){
     return;
   }
   hideNotice();
+  // Instant preview straight from the picked file — no decoding involved, so the
+  // user sees their photo right away even if the processing below is slow or fails.
+  try {
+    $("previewImg").src = URL.createObjectURL(file);
+    $("preview").style.display = "block";
+    $("uploader").style.display = "none";
+  } catch (e) { /* The processing below will set the preview instead */ }
   try {
     const bmp = await loadImageBitmap(file);
     // For sending: longest side ≤1024px, JPEG quality 0.82
@@ -350,7 +358,7 @@ async function processFile(file){
     // with FileReader and use it for both preview and sending (data URL up to ~6MB).
     try {
       const raw = await readAsDataURL(file);
-      if (typeof raw !== "string" || raw.indexOf("data:image/") !== 0 || raw.length > 6000000) throw new Error("raw fallback unusable");
+      if (typeof raw !== "string" || raw.indexOf("data:image/") !== 0 || raw.length > 2400000) throw new Error("raw fallback unusable");
       photo = {
         dataUrl: raw,
         thumbUrl: raw,
@@ -360,6 +368,8 @@ async function processFile(file){
       $("preview").style.display = "block";
       $("uploader").style.display = "none";
     } catch (e2) {
+      $("preview").style.display = "none";
+      $("uploader").style.display = "block";
       showNotice("error", "That photo could not be read — try another one? (Very large files or unusual formats may fail)");
     }
   }
