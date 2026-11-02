@@ -221,7 +221,7 @@
   <footer>
     This is an entertainment test. The AI judges only what is visible in a single photo — take the results with a grain of salt, and never let them define you or anyone else.<br>
     Privacy: your photo is sent to the analysis service for this test only, and this page does not store the original. Your test history and small compressed thumbnails live only in this device's browser (localStorage) and disappear when you clear your browser data.<br>
-    <span style="opacity:.6">v2026.11.02-2</span>
+    <span style="opacity:.6">v2026.11.02-3</span>
   </footer>
 </div>
 
@@ -286,19 +286,23 @@ function gapDesc(gap){
 }
 
 /* ---------- Photo handling: canvas compression ---------- */
-async function loadImageBitmap(file){
-  if (window.createImageBitmap) {
-    try { return await createImageBitmap(file, { imageOrientation: "from-image" }); }
-    catch (e) { /* Older browsers reject the options argument; fall back to the plain call */ }
-    try { return await createImageBitmap(file); } catch (e) { /* Fall back to Image below */ }
-  }
+function loadViaImageSrc(src){
   return new Promise(function(resolve, reject){
-    const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = function(){ resolve(img); };
-    img.onerror = function(){ URL.revokeObjectURL(url); reject(new Error("Failed to read image")); };
-    img.src = url;
+    img.onerror = function(){ reject(new Error("img decode failed")); };
+    img.src = src;
   });
+}
+async function loadImageBitmap(file){
+  // The <img> route is the most battle-tested on Android browsers — try it first;
+  // createImageBitmap misbehaves in some browsers (options rejected, promises hanging).
+  try { return await loadViaImageSrc(URL.createObjectURL(file)); } catch (e) { /* try next */ }
+  if (window.createImageBitmap) {
+    try { return await createImageBitmap(file); } catch (e) { /* try next */ }
+    try { return await createImageBitmap(file, { imageOrientation: "from-image" }); } catch (e) { /* give up */ }
+  }
+  throw new Error("decode failed");
 }
 function drawScaled(source, maxSide, quality){
   const w0 = source.width, h0 = source.height;
@@ -321,57 +325,54 @@ function readAsDataURL(file){
     r.readAsDataURL(file);
   });
 }
+function stripDataPrefix(u){
+  return u.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "");
+}
 async function processFile(file){
   if (!file) return;
-  // Only reject when the type is clearly not an image. Some browsers (e.g. Yandex)
-  // return an empty file.type and an extensionless name for album picks — the old
-  // gate killed valid photos right here. Now those pass through and decoding decides.
   if (file.type && !/^image\//.test(file.type) && !/\.(jpe?g|png|webp|heic|heif)$/i.test(file.name || "")) {
     showNotice("error", "Please choose an image file (JPG or PNG both work).");
     return;
   }
   hideNotice();
-  // Instant preview straight from the picked file — no decoding involved, so the
-  // user sees their photo right away even if the processing below is slow or fails.
   try {
     $("previewImg").src = URL.createObjectURL(file);
     $("preview").style.display = "block";
     $("uploader").style.display = "none";
-  } catch (e) { /* The processing below will set the preview instead */ }
+  } catch (e) { /* processing below sets the preview instead */ }
   try {
     const bmp = await loadImageBitmap(file);
-    // For sending: longest side ≤1024px, JPEG quality 0.82
     const dataUrl = drawScaled(bmp, 1024, 0.82);
-    // History thumbnail: longest side 240px, quality 0.7, stored only in this browser
     const thumbUrl = drawScaled(bmp, 240, 0.7);
     if (bmp.close) bmp.close();
-    photo = {
-      dataUrl: dataUrl,
-      thumbUrl: thumbUrl,
-      sendBase64: dataUrl.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "")
-    };
+    photo = { dataUrl: dataUrl, thumbUrl: thumbUrl, sendBase64: stripDataPrefix(dataUrl) };
     $("previewImg").src = dataUrl;
     $("preview").style.display = "block";
     $("uploader").style.display = "none";
-  } catch (e) {
-    // Fallback: if the canvas decode path fails, read the original file directly
-    // with FileReader and use it for both preview and sending (data URL up to ~6MB).
+    return;
+  } catch (e) { /* fall through to the raw fallback */ }
+  let stage = "rawread";
+  try {
+    const raw = await readAsDataURL(file);
+    if (typeof raw !== "string" || raw.indexOf("data:image/") !== 0) throw new Error("raw read failed");
     try {
-      const raw = await readAsDataURL(file);
-      if (typeof raw !== "string" || raw.indexOf("data:image/") !== 0 || raw.length > 2400000) throw new Error("raw fallback unusable");
-      photo = {
-        dataUrl: raw,
-        thumbUrl: raw,
-        sendBase64: raw.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "")
-      };
-      $("previewImg").src = raw;
-      $("preview").style.display = "block";
-      $("uploader").style.display = "none";
-    } catch (e2) {
-      $("preview").style.display = "none";
-      $("uploader").style.display = "block";
-      showNotice("error", "That photo could not be read — try another one? (Very large files or unusual formats may fail)");
+      const img2 = await loadViaImageSrc(raw);
+      const d2 = drawScaled(img2, 1024, 0.82);
+      const t2 = drawScaled(img2, 240, 0.7);
+      photo = { dataUrl: d2, thumbUrl: t2, sendBase64: stripDataPrefix(d2) };
+    } catch (e3) {
+      stage = "rawsize";
+      if (raw.length > 2400000) throw new Error("raw too large");
+      photo = { dataUrl: raw, thumbUrl: raw, sendBase64: stripDataPrefix(raw) };
     }
+    $("previewImg").src = photo.dataUrl;
+    $("preview").style.display = "block";
+    $("uploader").style.display = "none";
+  } catch (e2) {
+    photo = null;
+    $("preview").style.display = "none";
+    $("uploader").style.display = "block";
+    showNotice("error", "That photo could not be read — try another one? (Very large files or unusual formats may fail) [" + stage + "]");
   }
 }
 

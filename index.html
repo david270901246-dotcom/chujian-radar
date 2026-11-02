@@ -221,7 +221,7 @@
   <footer>
     本工具是娱乐测评，AI 的判断基于一张照片的可见信息，结果仅供参考，别太当真，更别拿它定义自己或别人。<br>
     隐私：你的照片只发送给分析接口用于本次测评，本页面不保存照片原图；测评记录和压缩后的小缩略图只存在你这台设备的浏览器里（localStorage），清除浏览器数据即会消失。<br>
-    <span style="opacity:.6">v2026.11.02-2</span>
+    <span style="opacity:.6">v2026.11.02-3</span>
   </footer>
 </div>
 
@@ -285,19 +285,23 @@ function gapDesc(gap){
 }
 
 /* ---------- 照片处理：canvas 压缩 ---------- */
-async function loadImageBitmap(file){
-  if (window.createImageBitmap) {
-    try { return await createImageBitmap(file, { imageOrientation: "from-image" }); }
-    catch (e) { /* 老浏览器不支持带选项，退回普通方式 */ }
-    try { return await createImageBitmap(file); } catch (e) { /* 继续退回 Image */ }
-  }
+function loadViaImageSrc(src){
   return new Promise(function(resolve, reject){
-    const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = function(){ resolve(img); };
-    img.onerror = function(){ URL.revokeObjectURL(url); reject(new Error("图片读取失败")); };
-    img.src = url;
+    img.onerror = function(){ reject(new Error("img decode failed")); };
+    img.src = src;
   });
+}
+async function loadImageBitmap(file){
+  // The <img> route is the most battle-tested on Android browsers — try it first;
+  // createImageBitmap misbehaves in some browsers (options rejected, promises hanging).
+  try { return await loadViaImageSrc(URL.createObjectURL(file)); } catch (e) { /* try next */ }
+  if (window.createImageBitmap) {
+    try { return await createImageBitmap(file); } catch (e) { /* try next */ }
+    try { return await createImageBitmap(file, { imageOrientation: "from-image" }); } catch (e) { /* give up */ }
+  }
+  throw new Error("decode failed");
 }
 function drawScaled(source, maxSide, quality){
   const w0 = source.width, h0 = source.height;
@@ -320,56 +324,54 @@ function readAsDataURL(file){
     r.readAsDataURL(file);
   });
 }
+function stripDataPrefix(u){
+  return u.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "");
+}
 async function processFile(file){
   if (!file) return;
-  // 只在类型明确不是图片时才拒绝。有些浏览器（如 Yandex）从相册选图时 file.type 为空、
-  // 文件名也没有扩展名，旧版在这里就把正常照片误杀了——现在放行，靠后面的解码本身把关。
   if (file.type && !/^image\//.test(file.type) && !/\.(jpe?g|png|webp|heic|heif)$/i.test(file.name || "")) {
     showNotice("error", "请选择一张图片文件（JPG / PNG 都可以）。");
     return;
   }
   hideNotice();
-  // 先用 object URL 立刻出预览：不经过任何解码，选完就能看到照片，
-  // 下面处理慢或失败也不会让人对着空白等。
   try {
     $("previewImg").src = URL.createObjectURL(file);
     $("preview").style.display = "block";
     $("uploader").style.display = "none";
-  } catch (e) { /* 退回让下面处理流程来设置预览 */ }
+  } catch (e) { /* processing below sets the preview instead */ }
   try {
     const bmp = await loadImageBitmap(file);
-    // 发送用：最长边 ≤1024px，JPEG 质量 0.82
     const dataUrl = drawScaled(bmp, 1024, 0.82);
-    // 历史缩略图：最长边 240px，质量 0.7，只存本机浏览器
     const thumbUrl = drawScaled(bmp, 240, 0.7);
     if (bmp.close) bmp.close();
-    photo = {
-      dataUrl: dataUrl,
-      thumbUrl: thumbUrl,
-      sendBase64: dataUrl.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "")
-    };
+    photo = { dataUrl: dataUrl, thumbUrl: thumbUrl, sendBase64: stripDataPrefix(dataUrl) };
     $("previewImg").src = dataUrl;
     $("preview").style.display = "block";
     $("uploader").style.display = "none";
-  } catch (e) {
-    // 兜底：canvas 解码这条路失败时，直接用 FileReader 读原图显示和发送
-    // （dataURL 不超过约 6MB 才行，再大的后端也会拒收）
+    return;
+  } catch (e) { /* fall through to the raw fallback */ }
+  let stage = "rawread";
+  try {
+    const raw = await readAsDataURL(file);
+    if (typeof raw !== "string" || raw.indexOf("data:image/") !== 0) throw new Error("raw read failed");
     try {
-      const raw = await readAsDataURL(file);
-      if (typeof raw !== "string" || raw.indexOf("data:image/") !== 0 || raw.length > 2400000) throw new Error("raw fallback unusable");
-      photo = {
-        dataUrl: raw,
-        thumbUrl: raw,
-        sendBase64: raw.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "")
-      };
-      $("previewImg").src = raw;
-      $("preview").style.display = "block";
-      $("uploader").style.display = "none";
-    } catch (e2) {
-      $("preview").style.display = "none";
-      $("uploader").style.display = "block";
-      showNotice("error", "这张照片读取失败，换一张试试？（太大的图或特殊格式可能读不了）");
+      const img2 = await loadViaImageSrc(raw);
+      const d2 = drawScaled(img2, 1024, 0.82);
+      const t2 = drawScaled(img2, 240, 0.7);
+      photo = { dataUrl: d2, thumbUrl: t2, sendBase64: stripDataPrefix(d2) };
+    } catch (e3) {
+      stage = "rawsize";
+      if (raw.length > 2400000) throw new Error("raw too large");
+      photo = { dataUrl: raw, thumbUrl: raw, sendBase64: stripDataPrefix(raw) };
     }
+    $("previewImg").src = photo.dataUrl;
+    $("preview").style.display = "block";
+    $("uploader").style.display = "none";
+  } catch (e2) {
+    photo = null;
+    $("preview").style.display = "none";
+    $("uploader").style.display = "block";
+    showNotice("error", "这张照片读取失败，换一张试试？（太大的图或特殊格式可能读不了）[" + stage + "]");
   }
 }
 
